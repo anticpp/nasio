@@ -1,7 +1,7 @@
 
-ALL: main
+all: main
 
-CPPFLAGS=-MD -o3
+CPPFLAGS=-MD -O3
 
 main: main.o
 	$(CXX) $^ -o $@
