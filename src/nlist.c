@@ -1,6 +1,7 @@
+#include <stdlib.h>
 #include "nlist.h"
 
-void nlist_add_tail(nlist *l, nlist_node *n)
+void nlist_add_tail(nlist_t *l, nlist_node_t *n)
 {
 	n->next = NULL;
 	n->prev = l->tail;
@@ -15,7 +16,7 @@ void nlist_add_tail(nlist *l, nlist_node *n)
 	return;
 }
 
-void nlist_del(nlist *l, nlist_node *n)
+void nlist_del(nlist_t *l, nlist_node_t *n)
 {
 	if( l->tail==n )
 		l->tail = n->prev;
@@ -28,6 +29,4 @@ void nlist_del(nlist *l, nlist_node *n)
 		n->prev->next = n->next;
 	return;
 }
-
-#endif
 

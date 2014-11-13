@@ -3,6 +3,9 @@
 /*
  * Two-way list.
  *
+ * Author: supergui@live.cn
+ * Date: 2014-11-05
+ *
  *              HEAD                            TAIL 
  *               |                               |
  *              \|/                             \|/
@@ -13,23 +16,25 @@
  *
  */
 
-struct nlist_node
+typedef struct nlist_node_s nlist_node_t;
+
+struct nlist_node_s
 {
-	nlist_node *prev;
-	nlist_node *next;
+	nlist_node_t *prev;
+	nlist_node_t *next;
 };
 
-struct nlist
+typedef struct 
 {
-	nlist_node *first;
-	nlist_node *tail;
-};
+	nlist_node_t *head;
+	nlist_node_t *tail;
+}nlist_t;
 
-#define NLIST_INIT(l) l->first = l->tail = NULL;
+#define NLIST_INIT(l) l->head = l->tail = NULL;
 
-void nlist_add_tail(nlist *l, nlist_node *n);
+void nlist_add_tail(nlist_t *l, nlist_node_t *n);
 
-void nlist_del(nlist *l, nlist_node *n);
+void nlist_del(nlist_t *l, nlist_node_t *n);
 
 #endif
 

@@ -1,26 +1,38 @@
 #ifndef _NASIO_NPOOL_H_
 #define _NASIO_NPOOL_H_
 
-struct npool
+#include <sys/types.h>
+
+/*
+ * Object pool.
+ *
+ * Author: supergui@live.cn
+ * Date: 2014-11-05
+ *
+ */
+
+typedef struct npool_inner_head_s npool_inner_head_t;
+struct npool_inner_head_s
+{
+	npool_inner_head_t *next;
+};
+
+typedef struct
 {
 	int elemsize;
 	int size;
 	int unused;
 
-	/*
-	 * Why not use N index, which saves 4 bytes?
-	 * Maybe we will create different lists, and attach together.
-	 */
-	off_t *free; 
-};
+	npool_inner_head_t *free_list;
+}npool_t;
 
-npool* npool_create(int elemsize, int size);
+npool_t* npool_create(int elemsize, int size);
 
-void npool_destroy(npool *pool);
+void npool_destroy(npool_t *pool);
 
-char* npool_alloc(npool *pool);
+char* npool_alloc(npool_t *pool);
 
-int npool_free(npool *pool, char *element);
+int npool_free(npool_t *pool, char *element);
 
 #endif
 
