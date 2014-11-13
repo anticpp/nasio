@@ -1,8 +1,8 @@
 
 TARGET=libnasio.a
-OBJS=nlist.o npool.o
+OBJS=nlist.o npool.o nasio.o
 
-CFLAGS=-Wall
+CFLAGS=-Wall -Wunused-function -std=c99
 
 $(TARGET):$(OBJS)
 	$(AR) rc $(TARGET) $(OBJS)

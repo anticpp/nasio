@@ -30,7 +30,7 @@ typedef struct
 	nlist_node_t *tail;
 }nlist_t;
 
-#define NLIST_INIT(l) l->head = l->tail = NULL;
+#define NLIST_INIT(l) l.head = l.tail = NULL;
 
 void nlist_add_tail(nlist_t *l, nlist_node_t *n);
 

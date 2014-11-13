@@ -4,8 +4,8 @@
 
 struct mydata
 {
-	uint64_t uid;
-	char name[64];
+	int id;
+	nlist_node_t *node;
 };
 
 int main(int argc, char *argv[])

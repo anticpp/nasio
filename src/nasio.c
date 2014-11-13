@@ -1,27 +1,84 @@
+#include <stdlib.h>
+#include <unistd.h>
+#include <errno.h>
+#include <string.h>
 #include "nasio.h"
-#include "nasoi_net.h"
+#include "nasio_net.h"
 
 #define MAX_BACKLOG 10000
+#define ACCEPT_ONCE 5
 
-struct nasio_listener
+#define LISTENER_OF(io) ( (nasio_listener_t *)((char *)w-offsetof(nasio_listener_t, watcher)) )
+
+#define ERROR_NOT_READY() ( errno==EAGAIN || errno==EWOULDBLOCK )
+
+#define GEN_CONN_ID(env) ( (++((env)->conn_id_gen)) % 0x00ffffffffffffff )
+
+typedef struct
 {
 	int fd;
 	struct sockaddr_in addr;
 	ev_io watcher;
 
-	nlist_node *list_node;
-};
+	nlist_node_t list_node;
+}nasio_listener_t;
 
-static 
-void listener_cb(struct ev_loop *loop, struct ev_io *w, int revents)
+static void on_writable_cb(struct ev_loop *loop, struct ev_io *w, int revents);
+static void on_readable_cb(struct ev_loop *loop, struct ev_io *w, int revents);
+static void on_writable_cb(struct ev_loop *loop, struct ev_io *w, int revents);
+
+void on_listener_cb(struct ev_loop *loop, struct ev_io *w, int revents)
 {
-	
-	ev_io_stop(EV_A_ w);
+	int max = ACCEPT_ONCE;
+	int cfd = 0;
+
+	nasio_env_t *env = (nasio_env_t *)w->data;
+	nasio_listener_t *listener = LISTENER_OF(w);
+	struct sockaddr_in addr;
+	socklen_t addrlen;
+	while(max-->0)
+	{
+		cfd = accept( listener->fd, (struct sockaddr *)&addr, &addrlen);
+		if( cfd<0 && ERROR_NOT_READY() ) //no pending
+		{
+			break;	
+		}
+		else if( cfd<0 ) //accept error
+		{
+			break;
+		}
+		else
+		{
+			nasio_conn_t *newconn = (nasio_conn_t *)npool_alloc( env->conn_pool );
+			if( newconn ) //holy shit
+			{
+				close( cfd );
+				break;
+			}
+			newconn->id = GEN_CONN_ID(env);
+			newconn->fd = cfd;
+			memcpy( &(newconn->addr), &addr, sizeof(struct sockaddr) );
+
+			ev_io_init( &(newconn->watcher), on_readable_cb, newconn->fd, EV_READ);
+			ev_io_start( env->loop, &(newconn->watcher) );
+
+			nlist_add_tail( &env->conn_list, &newconn->list_node );
+		}
+	}
 }
 
-nasio_env* nasio_env_create(int capacity)
+void on_readable_cb(struct ev_loop *loop, struct ev_io *w, int revents)
 {
-	nasio_env *env = (nasio*)malloc( sizeof(nasio_env) );
+
+}
+void on_writable_cb(struct ev_loop *loop, struct ev_io *w, int revents)
+{
+
+}
+
+nasio_env_t* nasio_env_create(int capacity)
+{
+	nasio_env_t *env = (nasio_env_t *)malloc( sizeof(nasio_env_t) );
 	if( !env )
 		return NULL;
 
@@ -29,13 +86,15 @@ nasio_env* nasio_env_create(int capacity)
 	if( !env->loop )
 		goto fail;
 
-	env->conn_pool = npool_create( sizeof(asio_conn), capacity );
+	env->conn_pool = npool_create( sizeof(nasio_conn_t), capacity );
 	if( !env->conn_pool )
 		goto fail;
 
-	NLIST_INIT( listen_list );
-	NLIST_INIT( remote_list );
-	NLIST_INIT( conn_list );
+	NLIST_INIT( env->listen_list );
+	NLIST_INIT( env->remote_list );
+	NLIST_INIT( env->conn_list );
+
+	env->conn_id_gen = 0;
 
 	return env;
 
@@ -45,7 +104,7 @@ fail:
 	return NULL;
 }
 
-int nasio_env_destroy(nasio_env *env)
+int nasio_env_destroy(nasio_env_t *env)
 {
 	ev_loop_destroy( env->loop );
 
@@ -57,13 +116,14 @@ int nasio_env_destroy(nasio_env *env)
 	return 0;
 }
 
-int nasio_add_listen(nasio_env *env
+int nasio_add_listen(nasio_env_t *env
 	, const char *ip
 	, short port
-	, nasio_conn_event_handler *handler)
+	, nasio_conn_event_handler_t *handler)
 {
 	int rv = 0;
-	nasio_listener *listener = (nasio_listener *)malloc( sizeof(nasoi_listener) );
+	nasio_listener_t *listener = (nasio_listener_t *)malloc( sizeof(nasio_listener_t) );
+	listener->watcher.data = env;//attach env
 
 	listener->fd = socket(PF_INET, SOCK_STREAM, 0);
 	if( listener->fd<0 )
@@ -90,26 +150,23 @@ int nasio_add_listen(nasio_env *env
 	rv = listen(listener->fd, MAX_BACKLOG);
 	if( rv<0 )
 	{
-		close(fd);
+		close(listener->fd);
 		return -1;
 	}
 	
-	ev_io_init(&listener->watcher, listener_cb, 0, EV_READ);
+	ev_io_init(&listener->watcher, on_listener_cb, listener->fd, EV_READ);
 	ev_io_start(env->loop, &(listener->watcher));
 
-	nlist_add_tail(env->listen_list, listener->list_node);
+	nlist_add_tail( &env->listen_list, &listener->list_node );
 
 	return 0;
 }
 
-int nasio_add_remote(nasio_env *env
+int nasio_add_remote(nasio_env_t *env
 	, const char *ip
 	, short port
-	, nasio_conn_event_handler *handler)
+	, nasio_conn_event_handler_t *handler)
 {
+	return 0;
 }
 
-int nasio_start()
-{
-
-}
