@@ -32,24 +32,26 @@ typedef struct
 
 #define nlist_init(l)\
 do{\
-	l->head = l->tail = NULL;\
+	(l)->head = (l)->tail = NULL;\
 }while(0)\
 
 /*
- * l: list, should not be empty
- * p: insert after p
- * n: insert node
+ * l: target list
+ * p: insert after node 'p'
+ * n: insert new node 'n'
  */
 void nlist_insert_after(nlist_t *l, nlist_node_t *p, nlist_node_t *n);
 
-#define nlist_insert_tail(l, n)\
-do{\
-	n->next = n->prev = NULL;\
-	if( !l->tail )\
-		l->head = l->tail = n;\
-	else\
-		nlist_insert_after(l, l->tail, n);\
-}while(0)\
+/*
+ * l: target list
+ * p: insert before node 'p'
+ * n: insert new node 'n'
+ */
+void nlist_insert_before(nlist_t *l, nlist_node_t *p, nlist_node_t *n);
+
+#define nlist_insert_tail(l, n)	nlist_insert_after(l, (l)->tail, n);
+
+#define nlist_insert_head(l, n) nlist_insert_before(l, (l)->head)
 
 void nlist_del(nlist_t *l, nlist_node_t *n);
 

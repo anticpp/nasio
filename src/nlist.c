@@ -3,6 +3,13 @@
 
 void nlist_insert_after(nlist_t *l, nlist_node_t *p, nlist_node_t *n)
 {
+	n->next = n->prev = NULL;
+	if( !l->tail ) //empty list
+	{
+		l->head = l->tail = n;
+		return;
+	}
+
 	n->prev = p;
 	n->next = p->next;
 
@@ -12,6 +19,27 @@ void nlist_insert_after(nlist_t *l, nlist_node_t *p, nlist_node_t *n)
 
 	if( l->tail==p )
 		l->tail = n;
+	return;
+}
+
+void nlist_insert_before(nlist_t *l, nlist_node_t *p, nlist_node_t *n)
+{
+	n->next = n->prev = NULL;
+	if( !l->head ) //empty list
+	{
+		l->head = l->tail = n;
+		return;
+	}
+
+	n->prev = p->prev;
+	n->next = p;
+
+	if( p->prev )
+		p->prev->next = n;
+	p->prev = n;
+
+	if( l->head==p )
+		l->head = n;
 	return;
 }
 

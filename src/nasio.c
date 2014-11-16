@@ -62,7 +62,7 @@ void on_listener_cb(struct ev_loop *loop, struct ev_io *w, int revents)
 			ev_io_init( &(newconn->watcher), on_readable_cb, newconn->fd, EV_READ);
 			ev_io_start( env->loop, &(newconn->watcher) );
 
-			nlist_insert_tail( &env->conn_list, &newconn->list_node );
+			nlist_insert_tail( &(env->conn_list), &(newconn->list_node) );
 		}
 	}
 }
@@ -90,9 +90,9 @@ nasio_env_t* nasio_env_create(int capacity)
 	if( !env->conn_pool )
 		goto fail;
 
-	nlist_init( &env->listen_list );
-	nlist_init( &env->remote_list );
-	nlist_init( &env->conn_list );
+	nlist_init( &(env->listen_list) );
+	nlist_init( &(env->remote_list) );
+	nlist_init( &(env->conn_list) );
 
 	env->conn_id_gen = 0;
 
@@ -157,7 +157,7 @@ int nasio_add_listen(nasio_env_t *env
 	ev_io_init(&listener->watcher, on_listener_cb, listener->fd, EV_READ);
 	ev_io_start(env->loop, &(listener->watcher));
 
-	nlist_insert_tail( &env->listen_list, &listener->list_node );
+	nlist_insert_tail( &(env->listen_list), &(listener->list_node) );
 
 	return 0;
 }
