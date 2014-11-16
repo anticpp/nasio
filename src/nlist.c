@@ -1,18 +1,17 @@
 #include <stdlib.h>
 #include "nlist.h"
 
-void nlist_add_tail(nlist_t *l, nlist_node_t *n)
+void nlist_insert_after(nlist_t *l, nlist_node_t *p, nlist_node_t *n)
 {
-	n->next = NULL;
-	n->prev = l->tail;
+	n->prev = p;
+	n->next = p->next;
 
-	if( l->tail )
-		l->tail->next = n;
+	if( p->next )
+		p->next->prev = n;
+	p->next = n;
 
-	l->tail = n;
-	if( !l->head )
-		l->head = n;
-
+	if( l->tail==p )
+		l->tail = n;
 	return;
 }
 

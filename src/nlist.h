@@ -30,9 +30,26 @@ typedef struct
 	nlist_node_t *tail;
 }nlist_t;
 
-#define NLIST_INIT(l) l.head = l.tail = NULL;
+#define nlist_init(l)\
+do{\
+	l->head = l->tail = NULL;\
+}while(0)\
 
-void nlist_add_tail(nlist_t *l, nlist_node_t *n);
+/*
+ * l: list, should not be empty
+ * p: insert after p
+ * n: insert node
+ */
+void nlist_insert_after(nlist_t *l, nlist_node_t *p, nlist_node_t *n);
+
+#define nlist_insert_tail(l, n)\
+do{\
+	n->next = n->prev = NULL;\
+	if( !l->tail )\
+		l->head = l->tail = n;\
+	else\
+		nlist_insert_after(l, l->tail, n);\
+}while(0)\
 
 void nlist_del(nlist_t *l, nlist_node_t *n);
 
