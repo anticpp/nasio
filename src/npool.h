@@ -11,6 +11,10 @@
  *
  */
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct npool_inner_head_s npool_inner_head_t;
 struct npool_inner_head_s
 {
@@ -35,6 +39,11 @@ void npool_destroy(npool_t *pool);
 char* npool_alloc(npool_t *pool);
 
 int npool_free(npool_t *pool, char *element);
+
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
 

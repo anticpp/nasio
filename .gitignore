@@ -1,3 +1,6 @@
+# Targets
+unit_test
+
 # Object files
 *.o
 *.ko

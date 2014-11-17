@@ -13,6 +13,10 @@
 #include "npool.h"
 #include "nlist.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #ifndef offsetof
 #define offsetof(s, e) (size_t)( &(((s *)0)->e) )
 #endif
@@ -60,6 +64,10 @@ int nasio_add_remote(nasio_env_t *env
 	, const char *ip
 	, short port
 	, nasio_conn_event_handler_t *handler);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
 

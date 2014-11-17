@@ -16,6 +16,10 @@
  *
  */
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct nlist_node_s nlist_node_t;
 
 struct nlist_node_s
@@ -68,6 +72,10 @@ do{\
 	if((l)->tail)\
 		nlist_del(l, (l)->tail);\
 }while(0)\
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
 

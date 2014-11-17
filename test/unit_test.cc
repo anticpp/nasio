@@ -2,9 +2,17 @@
 #include <stdio.h>
 #include <string.h>
 #include <assert.h>
+#include <gtest/gtest.h>
 #include "nlist.h"
 #include "npool.h"
+/*
+ * Unit test with gtest.
+ *
+ * Author: supergui@live.cn
+ * Date: 2014-11-16
+ */
 
+#if 0
 typedef struct
 {
 	char name[64];
@@ -213,8 +221,8 @@ void test_npool()
 	elem1 = npool_alloc( pool );
 	elem2 = npool_alloc( pool );
 	assert( elem1 && elem2 && npool_available(pool)==8 );
-	assert( (elem1 - (char*)pool - sizeof(npool_t)) % elemsize ==0 );
-	assert( (elem2 - (char*)pool - sizeof(npool_t)) % elemsize ==0 );
+	assert( (elem1 - (char*)pool - sizeof(npool_t))%elemsize==0 );
+	assert( (elem2 - (char*)pool - sizeof(npool_t))%elemsize==0 );
 	printf("npool alloc ok\n");
 	
 	/** free
@@ -227,12 +235,34 @@ void test_npool()
 
 	npool_destroy( pool );
 }
+#endif
+class NListTest : public ::testing::Test
+{
+protected:
+	NListTest() {}
+	~NListTest() {}
+
+	virtual void SetUp()
+	{
+		list = (nlist_t *)malloc( sizeof(nlist_t) );
+		nlist_init( list );
+	}
+	virtual void TearDown() 
+	{
+		free( list );
+	}
+	
+	nlist_t *list;
+};
+
+TEST_F(NListTest, NListTestCreate)
+{
+	ASSERT_TRUE( list->head==NULL );
+	ASSERT_TRUE( list->tail==NULL );
+}
 
 int main(int argc, char* argv[])
 {
-	push( "nlist_test", test_nlist );
-	push( "npool_test", test_npool );
-
-	run();
-	return 0;
+	::testing::InitGoogleTest(&argc, argv);
+	return RUN_ALL_TESTS();
 }
