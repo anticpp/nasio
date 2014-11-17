@@ -35,6 +35,8 @@ do{\
 	(l)->head = (l)->tail = NULL;\
 }while(0)\
 
+#define nlist_isempty(l) ( (l)->head==NULL && (l)->tail==NULL )
+
 /*
  * l: target list
  * p: insert after node 'p'
@@ -51,9 +53,21 @@ void nlist_insert_before(nlist_t *l, nlist_node_t *p, nlist_node_t *n);
 
 #define nlist_insert_tail(l, n)	nlist_insert_after(l, (l)->tail, n);
 
-#define nlist_insert_head(l, n) nlist_insert_before(l, (l)->head)
+#define nlist_insert_head(l, n) nlist_insert_before(l, (l)->head, n)
 
 void nlist_del(nlist_t *l, nlist_node_t *n);
+
+#define nlist_del_head(l)\
+do{\
+	if((l)->head)\
+		nlist_del(l, (l)->head);\
+}while(0)\
+
+#define nlist_del_tail(l)\
+do{\
+	if((l)->tail)\
+		nlist_del(l, (l)->tail);\
+}while(0)\
 
 #endif
 
