@@ -31,7 +31,7 @@ char* npool_alloc(npool_t *pool)
 		return NULL;
 	npool_inner_head_t *obj = pool->free_list;
 	pool->free_list = pool->free_list->next;
-	++(pool->unused);
+	--(pool->unused);
 	return (char *)obj;
 }
 
@@ -40,7 +40,7 @@ int npool_free(npool_t *pool, char *element)
 	npool_inner_head_t *obj = (npool_inner_head_t *)element;
 	obj->next = pool->free_list;
 	pool->free_list = obj;
-	--(pool->unused);
+	++(pool->unused);
 	return 0;
 }
 

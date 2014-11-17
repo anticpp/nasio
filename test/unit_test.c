@@ -3,6 +3,7 @@
 #include <string.h>
 #include <assert.h>
 #include "nlist.h"
+#include "npool.h"
 
 typedef struct
 {
@@ -197,9 +198,40 @@ void test_nlist()
 	free( list );
 }
 
+void test_npool()
+{
+	char *elem1 = NULL, *elem2 = NULL;
+	int elemsize = 40;
+	/** create
+	 **/
+	npool_t *pool = npool_create(elemsize, 10);
+	assert( pool && npool_available(pool)==10 );
+	printf("npool create ok\n");
+
+	/** alloc
+	 **/
+	elem1 = npool_alloc( pool );
+	elem2 = npool_alloc( pool );
+	assert( elem1 && elem2 && npool_available(pool)==8 );
+	assert( (elem1 - (char*)pool - sizeof(npool_t)) % elemsize ==0 );
+	assert( (elem2 - (char*)pool - sizeof(npool_t)) % elemsize ==0 );
+	printf("npool alloc ok\n");
+	
+	/** free
+	 **/
+	npool_free( pool, elem1 );
+	assert( npool_available(pool)==9 );
+	npool_free( pool, elem2 );
+	assert( npool_available(pool)==10 );
+	printf("npool free ok\n");
+
+	npool_destroy( pool );
+}
+
 int main(int argc, char* argv[])
 {
 	push( "nlist_test", test_nlist );
+	push( "npool_test", test_npool );
 
 	run();
 	return 0;

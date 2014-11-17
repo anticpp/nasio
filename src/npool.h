@@ -28,6 +28,8 @@ typedef struct
 
 npool_t* npool_create(int elemsize, int size);
 
+#define npool_available(pool) ((pool)->unused)
+
 void npool_destroy(npool_t *pool);
 
 char* npool_alloc(npool_t *pool);
