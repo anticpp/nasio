@@ -12,253 +12,189 @@
  * Date: 2014-11-16
  */
 
-#if 0
-typedef struct
-{
-	char name[64];
-	void (*func)();
-}unit_t;
-
-#define MAX_TEST 100
-int USED_TEST = 0;
-unit_t TEST[MAX_TEST] = { {"", 0} };
-
-int push(const char name[], void (*func)())
-{
-	if( USED_TEST>=MAX_TEST )
-		return -1;
-	unit_t *t = &(TEST[USED_TEST++]);
-	memcpy(t->name, name, sizeof(t->name));
-	t->func = func;
-	return 0;
-}
-
-void run()
-{
-	for(int i=0; i<USED_TEST; i++)
-	{
-		unit_t *t = &(TEST[i]);
-		printf("[[ %s ]]\n", t->name);
-		t->func();
-	}
-}
-
-/* test case below */
-
-/* for nlist test */
-typedef struct 
-{
-	nlist_node_t node;
-	int id;
-}mydata_t;
-
-int iter_mydata_list(nlist_t *list, int arr[], int len)
-{
-	nlist_node_t *n = list->head;
-	for(int i=0; i<len; i++)
-	{
-		if( n && ((mydata_t *)n)->id==arr[i] )
-			n = n->next;
-		else
-			return -1;
-	}
-	return n?-1:0;
-}
-
-void test_nlist()
-{
-	nlist_t *list = (nlist_t *)malloc( sizeof(nlist_t) );
-
-	mydata_t m[10];
-	for(int i=0; i<sizeof(m)/sizeof(mydata_t); i++)
-		m[i].id = i;
-	
-	nlist_node_t *n = NULL;
-
-	/* init */
-	nlist_init( list );
-	assert( list->head==NULL && list->tail==NULL );
-	printf( "nlist init ok\n" );
-
-	/* insert */
-	/** tail insert 
-	 ** add tail 0,1,2,3
-	 ** 0->1->2->3
-	 **/
-	for(int i=0; i<4; i++)
-		nlist_insert_tail( list, &(m[i].node) );
-	//iter_mydata_list(list, {0, 1, 2, 3}, 4);
-	
-	n = list->head;
-	assert( n && ((mydata_t *)n)->id==0 && (n=n->next) );
-	assert( n && ((mydata_t *)n)->id==1 && (n=n->next) );
-	assert( n && ((mydata_t *)n)->id==2 && (n=n->next) );
-	assert( n && ((mydata_t *)n)->id==3 && !(n=n->next) );
-	printf("nlist tail insert ok\n");
-	
-	/** head insert 
-	 ** add head 4,5
-	 ** 5->4->0->1->2->3
-	 **/
-	nlist_insert_head( list, &(m[4].node) );
-	nlist_insert_head( list, &(m[5].node) );
-	n = list->head;
-	assert( n && ((mydata_t *)n)->id==5 && (n=n->next) );
-	assert( n && ((mydata_t *)n)->id==4 && (n=n->next) );
-	assert( n && ((mydata_t *)n)->id==0 && (n=n->next) );
-	assert( n && ((mydata_t *)n)->id==1 && (n=n->next) );
-	assert( n && ((mydata_t *)n)->id==2 && (n=n->next) );
-	assert( n && ((mydata_t *)n)->id==3 && !(n=n->next) );
-	printf("nlist head insert ok\n");
-
-	/** random insert after
-	 ** add 6 after 5, 7 after 2 
-	 ** 5->6->4->0->1->2->7->3
-	 **/
-	nlist_insert_after( list, &(m[5].node), &(m[6].node) );
-	nlist_insert_after( list, &(m[2].node), &(m[7].node) );
-	n = list->head;
-	assert( n && ((mydata_t *)n)->id==5 && (n=n->next) );
-	assert( n && ((mydata_t *)n)->id==6 && (n=n->next) );
-	assert( n && ((mydata_t *)n)->id==4 && (n=n->next) );
-	assert( n && ((mydata_t *)n)->id==0 && (n=n->next) );
-	assert( n && ((mydata_t *)n)->id==1 && (n=n->next) );
-	assert( n && ((mydata_t *)n)->id==2 && (n=n->next) );
-	assert( n && ((mydata_t *)n)->id==7 && (n=n->next) );
-	assert( n && ((mydata_t *)n)->id==3 && !(n=n->next) );
-	printf("nlist random insert after ok\n");
-	
-	/** random insert before
-	 ** add 8 before 2, 9 before 4
-	 ** 5->6->9->4->0->1->8->2->7->3
-	 **/
-	nlist_insert_before( list, &(m[2].node), &(m[8].node) );
-	nlist_insert_before( list, &(m[4].node), &(m[9].node) );
-	n = list->head;
-	assert( n && ((mydata_t *)n)->id==5 && (n=n->next) );
-	assert( n && ((mydata_t *)n)->id==6 && (n=n->next) );
-	assert( n && ((mydata_t *)n)->id==9 && (n=n->next) );
-	assert( n && ((mydata_t *)n)->id==4 && (n=n->next) );
-	assert( n && ((mydata_t *)n)->id==0 && (n=n->next) );
-	assert( n && ((mydata_t *)n)->id==1 && (n=n->next) );
-	assert( n && ((mydata_t *)n)->id==8 && (n=n->next) );
-	assert( n && ((mydata_t *)n)->id==2 && (n=n->next) );
-	assert( n && ((mydata_t *)n)->id==7 && (n=n->next) );
-	assert( n && ((mydata_t *)n)->id==3 && !(n=n->next) );
-	printf("nlist random insert before ok\n");
-
-	/** head delete
-	 ** delete 5, 6
-	 ** 9->4->0->1->8->2->7->3
-	 **/
-	nlist_del_head( list );
-	nlist_del_head( list );
-	n = list->head;
-	assert( n && ((mydata_t *)n)->id==9 && (n=n->next) );
-	assert( n && ((mydata_t *)n)->id==4 && (n=n->next) );
-	assert( n && ((mydata_t *)n)->id==0 && (n=n->next) );
-	assert( n && ((mydata_t *)n)->id==1 && (n=n->next) );
-	assert( n && ((mydata_t *)n)->id==8 && (n=n->next) );
-	assert( n && ((mydata_t *)n)->id==2 && (n=n->next) );
-	assert( n && ((mydata_t *)n)->id==7 && (n=n->next) );
-	assert( n && ((mydata_t *)n)->id==3 && !(n=n->next) );
-	printf("nlist head delete ok\n");
-
-	/** tail delete 
-	 ** delete 7, 3
-	 ** 9->4->0->1->8->2
-	 **/
-	nlist_del_tail( list );
-	nlist_del_tail( list );
-	n = list->head;
-	assert( n && ((mydata_t *)n)->id==9 && (n=n->next) );
-	assert( n && ((mydata_t *)n)->id==4 && (n=n->next) );
-	assert( n && ((mydata_t *)n)->id==0 && (n=n->next) );
-	assert( n && ((mydata_t *)n)->id==1 && (n=n->next) );
-	assert( n && ((mydata_t *)n)->id==8 && (n=n->next) );
-	assert( n && ((mydata_t *)n)->id==2 && !(n=n->next) );
-	printf("nlist tail delete ok\n");
-
-	/** random delete 
-	 ** delete 4, 8
-	 ** 9->0->1->2
-	 **/
-	nlist_del( list, &(m[4].node) );
-	nlist_del( list, &(m[8].node) );
-	n = list->head;
-	assert( n && ((mydata_t *)n)->id==9 && (n=n->next) );
-	assert( n && ((mydata_t *)n)->id==0 && (n=n->next) );
-	assert( n && ((mydata_t *)n)->id==1 && (n=n->next) );
-	assert( n && ((mydata_t *)n)->id==2 && !(n=n->next) );
-	printf("nlist random delete ok\n");
-
-	/** delete all 
-	 ** delete 9, 0, 1, 2
-	 ** NULL
-	 **/
-	nlist_del( list, &(m[0].node) );
-	nlist_del( list, &(m[9].node) );
-	nlist_del( list, &(m[1].node) );
-	nlist_del( list, &(m[2].node) );
-	assert( nlist_isempty(list) );
-	printf("nlist delete all ok\n");
-
-	free( list );
-}
-
-void test_npool()
-{
-	char *elem1 = NULL, *elem2 = NULL;
-	int elemsize = 40;
-	/** create
-	 **/
-	npool_t *pool = npool_create(elemsize, 10);
-	assert( pool && npool_available(pool)==10 );
-	printf("npool create ok\n");
-
-	/** alloc
-	 **/
-	elem1 = npool_alloc( pool );
-	elem2 = npool_alloc( pool );
-	assert( elem1 && elem2 && npool_available(pool)==8 );
-	assert( (elem1 - (char*)pool - sizeof(npool_t))%elemsize==0 );
-	assert( (elem2 - (char*)pool - sizeof(npool_t))%elemsize==0 );
-	printf("npool alloc ok\n");
-	
-	/** free
-	 **/
-	npool_free( pool, elem1 );
-	assert( npool_available(pool)==9 );
-	npool_free( pool, elem2 );
-	assert( npool_available(pool)==10 );
-	printf("npool free ok\n");
-
-	npool_destroy( pool );
-}
-#endif
+/** Test case: nlist **/
 class NListTest : public ::testing::Test
 {
 protected:
-	NListTest() {}
+	typedef struct 
+	{
+		nlist_node_t node;
+		int id;
+	}TestData;
+
+	const static int DATA_LEN = 10;
+protected:
+	NListTest() 
+	{
+		data_arr = NULL;
+		list = list1 = list2 = NULL;
+	}
 	~NListTest() {}
 
 	virtual void SetUp()
 	{
-		list = (nlist_t *)malloc( sizeof(nlist_t) );
-		nlist_init( list );
+		data_arr = (TestData *)malloc( sizeof(TestData)*DATA_LEN );
+		for( int i=0; i<DATA_LEN; i++ )
+			data_arr[i].id = i;
+
+		list = (nlist_t *)malloc( sizeof(nlist_t)*2 );
+		list1 = list;
+		list2 = list+1;
+		nlist_init( list1 );
+		nlist_init( list2 );
+
+		for( int i=0; i<DATA_LEN-5; i++ )
+			nlist_insert_tail( list2, &(data_arr[i].node) );
 	}
 	virtual void TearDown() 
 	{
-		free( list );
+		if( data_arr )
+		{
+			free( data_arr );
+			data_arr = NULL;
+		}
+		if( list )
+		{
+			free( list );
+			list = list1 = list2 = NULL;
+		}
 	}
 	
 	nlist_t *list;
+	nlist_t *list1, *list2;
+
+	TestData *data_arr;
+
+public:
+	void ITER_AND_ASSERT_NLIST(nlist_t *list, int arr[], int arrlen)
+	{
+		nlist_node_t *node = list->head;
+		for(int i=0; i<arrlen; i++)
+		{
+			TestData *data = (TestData *)node;
+			ASSERT_TRUE( (node && data->id==arr[i]) ) << "[" << i << "] node: " << node << ", data->id: " << data->id << ", arr[i]: " << arr[i];
+			node = node->next;
+			if( i==arrlen-1) 
+				ASSERT_FALSE( node ) << "[" << i << "] node: " << node;
+			else
+				ASSERT_TRUE( node ) << "[" << i << "] node: " << node;
+		}
+	}
 };
 
 TEST_F(NListTest, NListTestCreate)
 {
-	ASSERT_TRUE( list->head==NULL );
-	ASSERT_TRUE( list->tail==NULL );
+	ASSERT_TRUE( list1->head==NULL );
+	ASSERT_TRUE( list1->tail==NULL );
+}
+
+TEST_F(NListTest, NListTestInsertTail)
+{
+	int arr[] = {0, 1, 2, 3, 4};
+	ITER_AND_ASSERT_NLIST( list2, arr, sizeof(arr)/sizeof(int) );
+}
+
+TEST_F(NListTest, NListTestInsertHead)
+{
+	int arr[] = {6, 5, 0, 1, 2, 3, 4};
+	nlist_insert_head( list2, &(data_arr[5].node) );
+	nlist_insert_head( list2, &(data_arr[6].node) );
+	ITER_AND_ASSERT_NLIST( list2, arr, sizeof(arr)/sizeof(int) );
+}
+
+TEST_F(NListTest, NListTestInsertRandomAfter)
+{
+	int arr[] = {0, 5, 1, 2, 3, 6, 4};
+	nlist_insert_after( list2,  &(data_arr[0].node),  &(data_arr[5].node));
+	nlist_insert_after( list2,  &(data_arr[3].node),  &(data_arr[6].node));
+	ITER_AND_ASSERT_NLIST( list2, arr, sizeof(arr)/sizeof(int) );
+}
+TEST_F(NListTest, NListTestInsertRandomBefore)
+{
+	int arr[] = {0, 5, 1, 2, 6, 3, 4};
+	nlist_insert_before( list2,  &(data_arr[1].node),  &(data_arr[5].node));
+	nlist_insert_before( list2,  &(data_arr[3].node),  &(data_arr[6].node));
+	ITER_AND_ASSERT_NLIST( list2, arr, sizeof(arr)/sizeof(int) );
+}
+TEST_F(NListTest, NListTestDeleteHead)
+{
+	int arr[] = {2, 3, 4};
+	nlist_del_head( list2 );
+	nlist_del_head( list2 );
+	ITER_AND_ASSERT_NLIST( list2, arr, sizeof(arr)/sizeof(int) );
+}
+TEST_F(NListTest, NListTestDeleteTail)
+{
+	int arr[] = {0, 1, 2};
+	nlist_del_tail( list2 );
+	nlist_del_tail( list2 );
+	ITER_AND_ASSERT_NLIST( list2, arr, sizeof(arr)/sizeof(int) );
+}
+TEST_F(NListTest, NListTestDeleteAll)
+{
+	nlist_del( list2, &(data_arr[0].node) );
+	nlist_del( list2, &(data_arr[1].node) );
+	nlist_del( list2, &(data_arr[2].node) );
+	nlist_del( list2, &(data_arr[3].node) );
+	nlist_del( list2, &(data_arr[4].node) );
+	ASSERT_TRUE( nlist_isempty( list2) );
+}
+
+/** Test case: npool **/
+class NPoolTest : public ::testing::Test
+{
+protected:
+	NPoolTest() 
+	{
+		pool = NULL;
+		elem1 = elem2 = NULL;
+	}
+	~NPoolTest() {}
+	
+	const static int ELEMSIZE = 40;
+	const static int POOLSIZE = 10;
+
+	virtual void SetUp() 
+	{
+		pool = npool_create(ELEMSIZE, POOLSIZE);
+	}
+	virtual void TearDown() 
+	{
+		if( pool )
+			npool_destroy( pool );
+	}
+
+	npool_t *pool;
+	char *elem1, *elem2;
+};
+
+TEST_F(NPoolTest, NPoolTestCreate)
+{
+	ASSERT_TRUE( pool );
+	
+	/* here is damn weird with 'POOLSIZE+0'
+	 */
+	ASSERT_EQ( npool_available(pool), POOLSIZE+0 ); 
+}
+
+TEST_F(NPoolTest, NPoolTestAlloc)
+{
+        elem1 = npool_alloc( pool );
+        elem2 = npool_alloc( pool );
+	ASSERT_TRUE( elem1!=NULL );
+	ASSERT_TRUE( elem2!=NULL );
+        ASSERT_EQ( npool_available(pool), POOLSIZE-2 );
+        ASSERT_TRUE( (elem1 - (char*)pool - sizeof(npool_t))%ELEMSIZE==0 );
+        ASSERT_TRUE( (elem2 - (char*)pool - sizeof(npool_t))%ELEMSIZE==0 );
+}
+
+TEST_F(NPoolTest, NPoolTestFree)
+{
+	int avail = npool_available( pool );
+        npool_free( pool, elem1 );
+        ASSERT_EQ( npool_available(pool),  avail+1 );
+        npool_free( pool, elem2 );
+        ASSERT_EQ( npool_available(pool), avail+2 );
 }
 
 int main(int argc, char* argv[])
