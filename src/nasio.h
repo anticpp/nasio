@@ -65,6 +65,9 @@ int nasio_add_remote(nasio_env_t *env
 	, short port
 	, nasio_conn_event_handler_t *handler);
 
+int nasio_run(nasio_env_t *env, int flag);
+
+
 #ifdef __cplusplus
 }
 #endif

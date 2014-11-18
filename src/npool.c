@@ -4,6 +4,8 @@
 npool_t* npool_create(int elemsize, int size)
 {
 	npool_t *pool = (npool_t *)malloc( sizeof(npool_t) + elemsize*size );
+	if( !pool )
+		return NULL;
 	pool->elemsize = elemsize;
 	pool->size = size;
 	pool->unused = size;

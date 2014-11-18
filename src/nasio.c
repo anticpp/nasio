@@ -1,14 +1,19 @@
 #include <stdlib.h>
+#include <stdio.h>
 #include <unistd.h>
 #include <errno.h>
 #include <string.h>
+#include <arpa/inet.h>
 #include "nasio.h"
 #include "nasio_net.h"
 
+#define DEBUGINFO(fmt, ...) printf(fmt, __VA_ARGS__);
 #define MAX_BACKLOG 10000
 #define ACCEPT_ONCE 5
 
-#define LISTENER_OF(io) ( (nasio_listener_t *)((char *)w-offsetof(nasio_listener_t, watcher)) )
+#define LISTENER_OF(w) ( (nasio_listener_t *)((char *)w-offsetof(nasio_listener_t, watcher)) )
+#define CONNECTION_OF(w) ( (nasio_conn_t *)((char *)w-offsetof(nasio_conn_t, watcher)) )
+
 
 #define ERROR_NOT_READY() ( errno==EAGAIN || errno==EWOULDBLOCK )
 
@@ -23,7 +28,7 @@ typedef struct
 	nlist_node_t list_node;
 }nasio_listener_t;
 
-static void on_writable_cb(struct ev_loop *loop, struct ev_io *w, int revents);
+static void on_listener_cb(struct ev_loop *loop, struct ev_io *w, int revents);
 static void on_readable_cb(struct ev_loop *loop, struct ev_io *w, int revents);
 static void on_writable_cb(struct ev_loop *loop, struct ev_io *w, int revents);
 
@@ -58,18 +63,36 @@ void on_listener_cb(struct ev_loop *loop, struct ev_io *w, int revents)
 			newconn->id = GEN_CONN_ID(env);
 			newconn->fd = cfd;
 			memcpy( &(newconn->addr), &addr, sizeof(struct sockaddr) );
+			//newconn->recvbuf = (char*)malloc( 100*1024 );//TODO
+			//newconn->startpos = 0;
+			//newconn->endpos = 0;
+			//newconn->readlimit = 100*1024;
 
 			ev_io_init( &(newconn->watcher), on_readable_cb, newconn->fd, EV_READ);
 			ev_io_start( env->loop, &(newconn->watcher) );
 
 			nlist_insert_tail( &(env->conn_list), &(newconn->list_node) );
+
+			DEBUGINFO("accept connection on %s:%d, client addr %s:%d\n"
+				, inet_ntoa(listener->addr.sin_addr)
+				, ntohs(listener->addr.sin_port)
+				, inet_ntoa(addr.sin_addr)
+				, ntohs(addr.sin_port));
 		}
 	}
 }
 
 void on_readable_cb(struct ev_loop *loop, struct ev_io *w, int revents)
 {
-
+/*
+	nasio_conn_t *conn = CONNECTION_OF(w);
+	size_t maxlen = 5*1024;
+	
+	size_t rbytes = read( conn->fd, conn->recvbuf, maxlen);
+	if( rbytes<0 )
+	{
+		if()
+	}*/
 }
 void on_writable_cb(struct ev_loop *loop, struct ev_io *w, int revents)
 {
@@ -167,6 +190,12 @@ int nasio_add_remote(nasio_env_t *env
 	, short port
 	, nasio_conn_event_handler_t *handler)
 {
+	return 0;
+}
+
+int nasio_run(nasio_env_t *env, int flag)
+{
+	ev_loop(env->loop, flag);
 	return 0;
 }
 
