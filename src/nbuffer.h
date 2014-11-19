@@ -1,5 +1,4 @@
 #ifndef _NASIO_NBUFFER_H_
-#define _NASIO_NBUFFER_H_
 /*
  * Defination of nbuffer. From JAVA.NIO.ByteBuffer.
  *
@@ -88,6 +87,8 @@ do{\
 	if( (pos)<=(b)->limit )\
 		(b)->pos=pos;\
 }while(0)\
+
+void nbuffer_destroy(nbuffer_t *buffer);
 
 #ifdef __cplusplus
 }

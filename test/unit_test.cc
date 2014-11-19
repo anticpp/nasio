@@ -5,6 +5,7 @@
 #include <gtest/gtest.h>
 #include "nlist.h"
 #include "npool.h"
+#include "nbuffer.h"
 /*
  * Unit test with gtest.
  *
@@ -84,18 +85,27 @@ public:
 
 TEST_F(NListTest, NListTestCreate)
 {
+	/* Test for create is ok.
+	 */
+
 	ASSERT_TRUE( list1->head==NULL );
 	ASSERT_TRUE( list1->tail==NULL );
 }
 
 TEST_F(NListTest, NListTestInsertTail)
 {
+	/* Test for append nodes to tail.
+	 */
+
 	int arr[] = {0, 1, 2, 3, 4};
 	ITER_AND_ASSERT_NLIST( list2, arr, sizeof(arr)/sizeof(int) );
 }
 
 TEST_F(NListTest, NListTestInsertHead)
 {
+	/* Test for append nodes before head.
+	 */
+
 	int arr[] = {6, 5, 0, 1, 2, 3, 4};
 	nlist_insert_head( list2, &(data_arr[5].node) );
 	nlist_insert_head( list2, &(data_arr[6].node) );
@@ -104,6 +114,9 @@ TEST_F(NListTest, NListTestInsertHead)
 
 TEST_F(NListTest, NListTestInsertRandomAfter)
 {
+	/* Test for insert node after a random node.
+	 */
+
 	int arr[] = {0, 5, 1, 2, 3, 6, 4};
 	nlist_insert_after( list2,  &(data_arr[0].node),  &(data_arr[5].node));
 	nlist_insert_after( list2,  &(data_arr[3].node),  &(data_arr[6].node));
@@ -111,13 +124,19 @@ TEST_F(NListTest, NListTestInsertRandomAfter)
 }
 TEST_F(NListTest, NListTestInsertRandomBefore)
 {
-	int arr[] = {0, 5, 1, 2, 6, 3, 4};
-	nlist_insert_before( list2,  &(data_arr[1].node),  &(data_arr[5].node));
-	nlist_insert_before( list2,  &(data_arr[3].node),  &(data_arr[6].node));
+	/* Test for insert node before a random node.
+	 */
+
+	int arr[] = {0, 5, 1, 2, 3, 6, 4};
+	nlist_insert_after( list2,  &(data_arr[0].node),  &(data_arr[5].node));
+	nlist_insert_after( list2,  &(data_arr[3].node),  &(data_arr[6].node));
 	ITER_AND_ASSERT_NLIST( list2, arr, sizeof(arr)/sizeof(int) );
 }
 TEST_F(NListTest, NListTestDeleteHead)
 {
+	/* Test for delete head node.
+	 */
+
 	int arr[] = {2, 3, 4};
 	nlist_del_head( list2 );
 	nlist_del_head( list2 );
@@ -125,6 +144,9 @@ TEST_F(NListTest, NListTestDeleteHead)
 }
 TEST_F(NListTest, NListTestDeleteTail)
 {
+	/* Test for delete tail node.
+	 */
+
 	int arr[] = {0, 1, 2};
 	nlist_del_tail( list2 );
 	nlist_del_tail( list2 );
@@ -132,6 +154,9 @@ TEST_F(NListTest, NListTestDeleteTail)
 }
 TEST_F(NListTest, NListTestDeleteAll)
 {
+	/* Test for delete all nodes.
+	 */
+
 	nlist_del( list2, &(data_arr[0].node) );
 	nlist_del( list2, &(data_arr[1].node) );
 	nlist_del( list2, &(data_arr[2].node) );
@@ -147,7 +172,6 @@ protected:
 	NPoolTest() 
 	{
 		pool = NULL;
-		elem1 = elem2 = NULL;
 	}
 	~NPoolTest() {}
 	
@@ -165,20 +189,26 @@ protected:
 	}
 
 	npool_t *pool;
-	char *elem1, *elem2;
 };
 
 TEST_F(NPoolTest, NPoolTestCreate)
 {
-	ASSERT_TRUE( pool );
-	
-	/* here is damn weird with 'POOLSIZE+0'
+	/* Test for create is ok.
 	 */
-	ASSERT_EQ( npool_available(pool), POOLSIZE+0 ); 
+
+	ASSERT_TRUE( pool );
+	ASSERT_EQ( npool_available(pool), int(POOLSIZE) ); 
 }
 
-TEST_F(NPoolTest, NPoolTestAlloc)
+TEST_F(NPoolTest, NPoolTestOperate)
 {
+	/* Test for allocate and free elements. 
+	 */
+
+	char *elem1, *elem2;
+
+	/* alloc
+	 */
         elem1 = npool_alloc( pool );
         elem2 = npool_alloc( pool );
 	ASSERT_TRUE( elem1!=NULL );
@@ -186,15 +216,109 @@ TEST_F(NPoolTest, NPoolTestAlloc)
         ASSERT_EQ( npool_available(pool), POOLSIZE-2 );
         ASSERT_TRUE( (elem1 - (char*)pool - sizeof(npool_t))%ELEMSIZE==0 );
         ASSERT_TRUE( (elem2 - (char*)pool - sizeof(npool_t))%ELEMSIZE==0 );
-}
 
-TEST_F(NPoolTest, NPoolTestFree)
-{
+	/* free
+	 */
 	int avail = npool_available( pool );
         npool_free( pool, elem1 );
         ASSERT_EQ( npool_available(pool),  avail+1 );
         npool_free( pool, elem2 );
         ASSERT_EQ( npool_available(pool), avail+2 );
+}
+TEST_F(NPoolTest, NPoolTestAllocAll)
+{
+	/* Test for allocate all available from pool.
+	 */
+
+	char *elem;
+	for(int i=0; i<POOLSIZE; i++)
+	{
+		elem = npool_alloc( pool );
+		ASSERT_TRUE( elem!=NULL );
+	}
+	elem = npool_alloc( pool );
+	ASSERT_TRUE( elem==NULL );
+
+	ASSERT_EQ( pool->unused, 0 );
+	ASSERT_TRUE( pool->free_list==NULL );
+}
+
+/** Test case: nbuffer **/
+class NBufferTest : public ::testing::Test
+{
+protected:
+	const static int BUFSIZE = 1024*1024;
+
+	NBufferTest() 
+	{ 
+		nbuf = NULL; 
+	}
+	~NBufferTest() {}
+	
+	virtual void SetUp()
+	{
+		nbuf = nbuffer_create( BUFSIZE );
+	}
+	virtual void TearDown()
+	{
+		if(nbuf)
+		{
+			nbuffer_destroy( nbuf );
+			nbuf = NULL;
+		}
+	}
+
+	nbuffer_t *nbuf;
+};
+
+TEST_F(NBufferTest, NBufferTestCreate)
+{
+	/* Test for create is ok.
+	 */
+
+	ASSERT_TRUE( nbuf->buf!=NULL );
+	EXPECT_EQ( nbuf->pos, 0 );
+	EXPECT_EQ( nbuf->capacity, int(BUFSIZE) );
+	EXPECT_EQ( nbuf->limit, nbuf->capacity );
+	EXPECT_EQ( nbuffer_remain(nbuf), nbuf->capacity );
+}
+TEST_F(NBufferTest, NBufferTestOperate)
+{
+	/* Test for read/write operations.
+	 */
+	char tmp[] = "HELLO WORLD";
+	char tmp1[6] = {0};
+	int wbytes = 0, rbytes = 0;
+	int remain = 0;
+
+	/* Write
+	 */
+	wbytes = nbuffer_put_buf( nbuf, tmp, sizeof(tmp)-1 );
+	ASSERT_EQ( wbytes, sizeof(tmp)-1 );
+	ASSERT_EQ( nbuf->pos, wbytes );
+	ASSERT_EQ( nbuffer_remain(nbuf), nbuf->capacity-sizeof(tmp)+1 );
+
+	/* Flip
+	 */
+	nbuffer_flip( nbuf );
+	ASSERT_EQ( nbuf->pos, 0 );
+	ASSERT_EQ( nbuf->limit, wbytes );
+	ASSERT_EQ( nbuffer_remain(nbuf), sizeof(tmp)-1 );
+
+	/* Read
+	 */
+	remain = nbuffer_remain( nbuf );
+	rbytes = nbuffer_get_buf( nbuf, tmp1, sizeof(tmp1)-1 );
+	ASSERT_EQ( rbytes, sizeof(tmp1)-1 );
+	ASSERT_EQ( nbuffer_remain(nbuf), remain-rbytes );
+	ASSERT_TRUE( strncmp(tmp1, "HELLO", sizeof(tmp1)-1)==0 );
+
+	/* Compact
+	 */
+	nbuffer_compact( nbuf );
+	ASSERT_EQ( nbuffer_remain(nbuf), nbuf->capacity-(wbytes-rbytes) );
+	ASSERT_EQ( nbuf->pos, wbytes-rbytes);
+	ASSERT_EQ( nbuf->limit, nbuf->capacity );
 }
 
 int main(int argc, char* argv[])
