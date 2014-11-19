@@ -54,6 +54,7 @@ typedef struct
 	char *buf;
 	int pos;
 	int limit;
+	int mark;
 
 	int capacity;
 }nbuffer_t;
@@ -76,16 +77,45 @@ int nbuffer_get_buf(nbuffer_t *nbuf, char *buf, int dlen);
 do{\
 	(b)->limit = (b)->pos;\
 	(b)->pos = 0;\
+	(b)->mark = -1;\
 }while(0)\
 
 /* compact before WRITE
+ * in fact, this operation includes compact & rewind.
  */
 int nbuffer_compact(nbuffer_t *nbuf);
 
+/* set position.
+ * pos must be no larget than limit.
+ * if mark is defined and larger than new position, discard it.
+ */
 #define nbuffer_set_pos(b, pos)\
 do{\
 	if( (pos)<=(b)->limit )\
-		(b)->pos=pos;\
+	{\
+		(b)->pos = pos;\
+		if( (b)->mark>pos )\
+			(b)->mark = -1;\
+	}\
+}while(0)\
+
+/* mark the current position.
+ */
+#define nbuffer_mark(b)	( (b)->mark=(b)->pos )
+
+/* reset the position to previous-marked position.
+ */
+#define nbuffer_reset(b)\
+do{\
+	if((b)->mark!=-1)\
+		(b)->pos=(b)->mark;\
+}while(0)\
+
+#define nbuffer_clear(b)\
+do{\
+	(b)->pos = 0;\
+	(b)->limit = (b)->capacity;\
+	(b)->mark = -1;\
 }while(0)\
 
 void nbuffer_destroy(nbuffer_t *buffer);

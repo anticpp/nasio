@@ -12,6 +12,7 @@ nbuffer_t* nbuffer_create(int size)
 	nbuf->pos = 0;
 	nbuf->limit = size;
 	nbuf->capacity = size;
+	nbuf->mark = -1;
 	return nbuf;
 }
 
@@ -49,6 +50,7 @@ int nbuffer_compact(nbuffer_t *nbuf)
 		memmove( nbuf->buf, nbuf->buf+nbuf->pos, remain );
 	nbuf->pos = remain;
 	nbuf->limit = nbuf->capacity;
+	nbuf->mark = -1;
 	return remain;
 }
 

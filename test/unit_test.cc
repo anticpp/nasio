@@ -304,6 +304,7 @@ TEST_F(NBufferTest, NBufferTestOperate)
 	ASSERT_EQ( nbuf->pos, 0 );
 	ASSERT_EQ( nbuf->limit, wbytes );
 	ASSERT_EQ( nbuffer_remain(nbuf), sizeof(tmp)-1 );
+	ASSERT_EQ( nbuf->mark, -1 );
 
 	/* Read
 	 */
@@ -319,6 +320,26 @@ TEST_F(NBufferTest, NBufferTestOperate)
 	ASSERT_EQ( nbuffer_remain(nbuf), nbuf->capacity-(wbytes-rbytes) );
 	ASSERT_EQ( nbuf->pos, wbytes-rbytes);
 	ASSERT_EQ( nbuf->limit, nbuf->capacity );
+	ASSERT_EQ( nbuf->mark, -1 );
+}
+TEST_F(NBufferTest, NBufferTestMark)
+{
+	/* Test for reset.
+	 */
+	char tmp[] = "HELLO WORLD";
+	char tmp1[] = "GUI";
+	char buf[20] = {0};
+
+	nbuffer_put_buf( nbuf, tmp, 5 ); //write 'HELLO'
+	nbuffer_mark( nbuf );//mark now
+	ASSERT_EQ( nbuf->mark, nbuf->pos );
+	nbuffer_put_buf( nbuf, tmp+5, 6); //write ' WORLD'
+	nbuffer_reset( nbuf ); //reset
+	nbuffer_put_buf( nbuf, tmp1, sizeof(tmp1)-1 );//write 'GUI'
+
+	nbuffer_flip( nbuf );
+	nbuffer_get_buf( nbuf, buf, sizeof(buf) );
+	ASSERT_TRUE( strncmp(buf, "HELLOGUI", sizeof(buf))==0 ) << "buf is: " << buf;
 }
 
 int main(int argc, char* argv[])
