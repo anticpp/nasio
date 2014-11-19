@@ -11,7 +11,8 @@ int main(int argc, char* argv[])
 		printf("nasio env create\n");
 		return 1;
 	}
-	rv = nasio_add_listen(env, "127.0.0.1", 12388, NULL);
+	//rv = nasio_add_listen(env, "127.0.0.1", 12388, NULL);
+	rv = nasio_add_listen(env, "*", 12388, NULL);
 	if( rv!=0 )
 	{
 		printf("add listener fail\n");
