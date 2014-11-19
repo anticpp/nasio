@@ -12,6 +12,7 @@
 #include <ev.h>
 #include "npool.h"
 #include "nlist.h"
+#include "nasio_net.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -37,10 +38,11 @@ typedef struct
 {
 	uint64_t id;
 	int fd;
-	struct sockaddr_in addr;
+	nasio_inaddr_t local_addr;
+	nasio_inaddr_t remote_addr;
 	ev_io watcher;
-	char *sendbuf;
-	char *recvbuf;
+	//char *sendbuf;
+	//char *recvbuf;
 
 	nlist_node_t list_node;
 }nasio_conn_t;

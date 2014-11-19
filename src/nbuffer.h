@@ -86,7 +86,7 @@ do{\
 int nbuffer_compact(nbuffer_t *nbuf);
 
 /* set position.
- * pos must be no larget than limit.
+ * pos must be no larger than limit.
  * if mark is defined and larger than new position, discard it.
  */
 #define nbuffer_set_pos(b, pos)\

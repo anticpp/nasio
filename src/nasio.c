@@ -22,7 +22,7 @@
 typedef struct
 {
 	int fd;
-	struct sockaddr_in addr;
+	nasio_inaddr_t addr;
 	ev_io watcher;
 
 	nlist_node_t list_node;
@@ -39,45 +39,46 @@ void on_listener_cb(struct ev_loop *loop, struct ev_io *w, int revents)
 
 	nasio_env_t *env = (nasio_env_t *)w->data;
 	nasio_listener_t *listener = LISTENER_OF(w);
-	struct sockaddr_in addr;
+	struct sockaddr_in in4addr;
 	socklen_t addrlen;
 	while(max-->0)
 	{
-		cfd = accept( listener->fd, (struct sockaddr *)&addr, &addrlen);
-		if( cfd<0 && ERROR_NOT_READY() ) //no pending
+		cfd = accept( listener->fd, (struct sockaddr *)&in4addr, &addrlen);
+		DEBUGINFO("accept new fd %d\n", cfd);
+		if( cfd<0 && ERROR_NOT_READY() ) /* no pending */
 		{
 			break;	
 		}
-		else if( cfd<0 ) //accept error
+		else if( cfd<0 ) /* accept error */
 		{
 			break;
 		}
 		else
 		{
 			nasio_conn_t *newconn = (nasio_conn_t *)npool_alloc( env->conn_pool );
-			if( newconn ) //holy shit
+			if( !newconn ) /* holy the shit */
 			{
+				DEBUGINFO("alloc newconn fail! connection pool available %d\n", npool_available(env->conn_pool));
 				close( cfd );
 				break;
 			}
 			newconn->id = GEN_CONN_ID(env);
 			newconn->fd = cfd;
-			memcpy( &(newconn->addr), &addr, sizeof(struct sockaddr) );
-			//newconn->recvbuf = (char*)malloc( 100*1024 );//TODO
-			//newconn->startpos = 0;
-			//newconn->endpos = 0;
-			//newconn->readlimit = 100*1024;
+			nasio_net_convert_inaddr( &(newconn->remote_addr), &in4addr );/* get remote addr */
+			nasio_net_get_local_addr( cfd, &(newconn->local_addr) );/* get local addr */
 
+			/* regist event
+			 */
 			ev_io_init( &(newconn->watcher), on_readable_cb, newconn->fd, EV_READ);
 			ev_io_start( env->loop, &(newconn->watcher) );
 
 			nlist_insert_tail( &(env->conn_list), &(newconn->list_node) );
 
-			DEBUGINFO("accept connection on %s:%d, client addr %s:%d\n"
-				, inet_ntoa(listener->addr.sin_addr)
-				, ntohs(listener->addr.sin_port)
-				, inet_ntoa(addr.sin_addr)
-				, ntohs(addr.sin_port));
+			DEBUGINFO("accept connection local addr %s:%d, reomte addr %s:%d\n"
+				, nasio_net_get_dot_addr(newconn->local_addr.addr)
+				, newconn->local_addr.port
+				, nasio_net_get_dot_addr(newconn->remote_addr.addr)
+				, newconn->remote_addr.port);
 		}
 	}
 }
@@ -144,27 +145,35 @@ int nasio_add_listen(nasio_env_t *env
 	, short port
 	, nasio_conn_event_handler_t *handler)
 {
+	struct sockaddr_in in4addr;
 	int rv = 0;
 	nasio_listener_t *listener = (nasio_listener_t *)malloc( sizeof(nasio_listener_t) );
 	listener->watcher.data = env;//attach env
 
-	listener->fd = socket(PF_INET, SOCK_STREAM, 0);
+	listener->fd = socket(AF_INET, SOCK_STREAM, 0);
 	if( listener->fd<0 )
 	{
+		printf("create socket fail\n");
 		free( listener );
 		return -1;
 	}
 	
 	nasio_net_set_block(listener->fd, 0);//set nonblock
+	nasio_net_set_reuse(listener->fd, 1);//set reuse
 
-	memset(&(listener->addr), 0x00, sizeof(struct sockaddr_in));
-	listener->addr.sin_family = PF_INET;
-	listener->addr.sin_port = htons(port);
-	inet_pton(AF_INET, ip, &(listener->addr));
+	memset(&in4addr, 0x00, sizeof(struct sockaddr_in));
+	in4addr.sin_family = AF_INET;
+	in4addr.sin_port = htons(port);
+	if ( strcmp(ip, "*")==0 )
+		in4addr.sin_addr.s_addr = htonl(INADDR_ANY);
+	else
+		in4addr.sin_addr.s_addr = inet_addr(ip);
 	
-	rv = bind(listener->fd, (struct sockaddr *)&(listener->addr), sizeof(struct sockaddr_in));
+	nasio_net_convert_inaddr( &(listener->addr), &in4addr );
+	rv = bind(listener->fd, (struct sockaddr *)&in4addr, sizeof(struct sockaddr_in));
 	if( rv<0 )
 	{
+		printf("bind address fail\n");
 		close(listener->fd);
 		free( listener );
 		return -1;
@@ -195,7 +204,7 @@ int nasio_add_remote(nasio_env_t *env
 
 int nasio_run(nasio_env_t *env, int flag)
 {
-	ev_loop(env->loop, flag);
+	ev_run(env->loop, flag);
 	return 0;
 }
 
