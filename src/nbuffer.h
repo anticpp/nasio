@@ -1,6 +1,7 @@
-#ifndef _NASIO_NBUFFER_H_
-/*
- * Defination of nbuffer. From JAVA.NIO.ByteBuffer.
+/**
+ * @file nbuffer.h
+ * @brief 
+ * 	From JAVA.NIO.ByteBuffer.
  *
  * INIT:
  * +-----------------------------------+
@@ -42,9 +43,13 @@
  *     pos                             limit
  *                                     capacity
  *
- * Author: supergui@live.cn
- * Date: 2014-11-05
+ * @author supergui@live.cn
+ * @version 
+ * @date 2014-11-05
  */
+#ifndef _NASIO_NBUFFER_H_
+#define _NASIO_NBUFFER_H_
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -59,19 +64,52 @@ typedef struct
 	int capacity;
 }nbuffer_t;
 
+/**
+ * @brief create nbuffer
+ *
+ * @param size - buffer size
+ *
+ * @return - NULL if fail
+ */
 nbuffer_t* nbuffer_create(int size);
 
+/**
+ * @brief remain len of buffer
+ *
+ * @param b
+ *
+ * @return 
+ */
 #define nbuffer_remain(b) ( ((b)->limit)-((b)->pos) )
 
-/* RETURN - real bytes put
+/**
+ * @brief put data to buffer
+ *
+ * @param nbuf
+ * @param buf
+ * @param dlen - max len to put
+ *
+ * @return - real bytes put
  */
 int nbuffer_put_buf(nbuffer_t *nbuf, const char *buf, int dlen);
 
-/* RETURN - real bytes get
+/**
+ * @brief get data from buffer
+ *
+ * @param nbuf
+ * @param buf
+ * @param dlen
+ *
+ * @return real bytes get
  */
 int nbuffer_get_buf(nbuffer_t *nbuf, char *buf, int dlen);
 
-/* flip before READ
+/**
+ * @brief flip before READ
+ *
+ * @param b
+ *
+ * @return 
  */
 #define nbuffer_flip(b)\
 do{\
@@ -80,14 +118,25 @@ do{\
 	(b)->mark = -1;\
 }while(0)\
 
-/* compact before WRITE
- * in fact, this operation includes compact & rewind.
+/** 
+ * @brief compact before WRITE
+ *	  in fact, this operation includes compact & rewind
+ *
+ * @param nbuf
+ *
+ * @return 
  */
 int nbuffer_compact(nbuffer_t *nbuf);
 
-/* set position.
- * pos must be no larger than limit.
- * if mark is defined and larger than new position, discard it.
+/**
+ * @brief set position.
+ * 	  pos must be no larger than limit.
+ * 	  if mark is defined and larger than new position, discard it.
+ *
+ * @param b
+ * @param pos
+ *
+ * @return 
  */
 #define nbuffer_set_pos(b, pos)\
 do{\
@@ -99,11 +148,21 @@ do{\
 	}\
 }while(0)\
 
-/* mark the current position.
+/**
+ * @brief mark the current position.
+ *
+ * @param b
+ *
+ * @return 
  */
 #define nbuffer_mark(b)	( (b)->mark=(b)->pos )
 
-/* reset the position to previous-marked position.
+/**
+ * @brief reset the position to previous-marked position.
+ *
+ * @param b
+ *
+ * @return 
  */
 #define nbuffer_reset(b)\
 do{\
@@ -111,6 +170,13 @@ do{\
 		(b)->pos=(b)->mark;\
 }while(0)\
 
+/**
+ * @brief 
+ *
+ * @param b
+ *
+ * @return 
+ */
 #define nbuffer_clear(b)\
 do{\
 	(b)->pos = 0;\
@@ -118,6 +184,11 @@ do{\
 	(b)->mark = -1;\
 }while(0)\
 
+/**
+ * @brief destroy buffer
+ *
+ * @param buffer
+ */
 void nbuffer_destroy(nbuffer_t *buffer);
 
 #ifdef __cplusplus

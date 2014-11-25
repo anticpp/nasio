@@ -7,17 +7,20 @@
 #include "nasio.h"
 #include "nasio_net.h"
 
+#ifndef offsetof
+#define offsetof(s, e) (size_t)( &(((s *)0)->e) )
+#endif
+
 #define DEBUGINFO(fmt, ...) printf(fmt, __VA_ARGS__);
 #define MAX_BACKLOG 10000
 #define ACCEPT_ONCE 5
 
-#define LISTENER_OF(w) ( (nasio_listener_t *)((char *)w-offsetof(nasio_listener_t, watcher)) )
-#define CONNECTION_OF(w) ( (nasio_conn_t *)((char *)w-offsetof(nasio_conn_t, watcher)) )
+#define listener_of(w) ( (nasio_listener_t *)((char *)w-offsetof(nasio_listener_t, watcher)) )
+#define connection_of(w) ( (nasio_conn_t *)((char *)w-offsetof(nasio_conn_t, watcher)) )
 
+#define error_not_ready() ( errno==EAGAIN || errno==EWOULDBLOCK )
 
-#define ERROR_NOT_READY() ( errno==EAGAIN || errno==EWOULDBLOCK )
-
-#define GEN_CONN_ID(env) ( (++((env)->conn_id_gen)) % 0x00ffffffffffffff )
+#define new_conn_id(env) ( (++((env)->conn_id_gen)) % 0x00ffffffffffffff )
 
 typedef struct
 {
@@ -38,14 +41,14 @@ void on_listener_cb(struct ev_loop *loop, struct ev_io *w, int revents)
 	int cfd = 0;
 
 	nasio_env_t *env = (nasio_env_t *)w->data;
-	nasio_listener_t *listener = LISTENER_OF(w);
+	nasio_listener_t *listener = listener_of(w);
 	struct sockaddr_in in4addr;
 	socklen_t addrlen;
 	while(max-->0)
 	{
 		cfd = accept( listener->fd, (struct sockaddr *)&in4addr, &addrlen);
 		DEBUGINFO("accept new fd %d\n", cfd);
-		if( cfd<0 && ERROR_NOT_READY() ) /* no pending */
+		if( cfd<0 && error_not_ready() ) /* no pending */
 		{
 			break;	
 		}
@@ -62,10 +65,11 @@ void on_listener_cb(struct ev_loop *loop, struct ev_io *w, int revents)
 				close( cfd );
 				break;
 			}
-			newconn->id = GEN_CONN_ID(env);
+			newconn->id = new_conn_id(env);
 			newconn->fd = cfd;
 			nasio_net_convert_inaddr( &(newconn->remote_addr), &in4addr );/* get remote addr */
 			nasio_net_get_local_addr( cfd, &(newconn->local_addr) );/* get local addr */
+			//newcond->rbuf = nbuffer_create( 1024*1024*1 );//1MB buffer
 
 			/* regist event
 			 */
@@ -86,7 +90,7 @@ void on_listener_cb(struct ev_loop *loop, struct ev_io *w, int revents)
 void on_readable_cb(struct ev_loop *loop, struct ev_io *w, int revents)
 {
 /*
-	nasio_conn_t *conn = CONNECTION_OF(w);
+	nasio_conn_t *conn = connection_of(w);
 	size_t maxlen = 5*1024;
 	
 	size_t rbytes = read( conn->fd, conn->recvbuf, maxlen);
