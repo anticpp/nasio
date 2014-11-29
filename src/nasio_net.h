@@ -16,7 +16,7 @@ extern "C" {
 
 typedef struct
 {
-	unsigned int addr;
+	unsigned long addr;
 	unsigned short port;
 }nasio_inaddr_t;
 
@@ -84,7 +84,7 @@ int nasio_net_convert_inaddr(nasio_inaddr_t *to, struct sockaddr_in *from);
  *
  * @return NULL if fail
  */
-const char* nasio_net_get_dot_addr(unsigned int addr);
+const char* nasio_net_get_dot_addr(unsigned long addr);
 
 #ifdef __cplusplus
 }

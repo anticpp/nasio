@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <fcntl.h>
 #include <arpa/inet.h>
 #include "nasio_net.h"
@@ -24,7 +25,7 @@ int nasio_net_get_local_addr(int fd, nasio_inaddr_t *addr)
 {
 	int rv = 0;
 	struct sockaddr_in in4addr;
-	socklen_t len;
+	socklen_t len = sizeof(in4addr);
 	rv = getsockname(fd, (struct sockaddr *)&in4addr, &len);
 	if( rv<0 )
 		return -1;
@@ -35,9 +36,9 @@ int nasio_net_get_local_addr(int fd, nasio_inaddr_t *addr)
 int nasio_net_get_remote_addr(int fd, nasio_inaddr_t *addr)
 {
 	int rv = 0;
-	socklen_t len;
 	struct sockaddr_in in4addr;
-	rv = getpeername(fd, (struct sockaddr *)&addr, &len);
+	socklen_t len = sizeof(in4addr);
+	rv = getpeername(fd, (struct sockaddr *)&in4addr, &len);
 	if( rv<0 )
 		return -1;
 	nasio_net_convert_inaddr( addr, &in4addr );
@@ -51,7 +52,7 @@ int nasio_net_convert_inaddr(nasio_inaddr_t *to, struct sockaddr_in *from)
 	return 0;
 }
 
-const char* nasio_net_get_dot_addr(unsigned int addr)
+const char* nasio_net_get_dot_addr(unsigned long addr)
 {
 	struct in_addr inaddr;
 	inaddr.s_addr = htonl( addr );

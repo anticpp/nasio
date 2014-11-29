@@ -1,3 +1,4 @@
+#include <string.h>
 #include <stdlib.h>
 #include "npool.h"
 
@@ -34,6 +35,8 @@ char* npool_alloc(npool_t *pool)
 	npool_inner_head_t *obj = pool->free_list;
 	pool->free_list = pool->free_list->next;
 	--(pool->unused);
+
+	memset((char*)obj, 0x00, pool->elemsize);//reset memmory
 	return (char *)obj;
 }
 

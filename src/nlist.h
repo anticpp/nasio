@@ -35,6 +35,7 @@ typedef struct
 {
 	nlist_node_t *head;
 	nlist_node_t *tail;
+	int size;
 }nlist_t;
 
 /**
@@ -47,6 +48,7 @@ typedef struct
 #define nlist_init(l)\
 do{\
 	(l)->head = (l)->tail = NULL;\
+	(l)->size = 0;\
 }while(0)\
 
 /**

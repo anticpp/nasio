@@ -44,6 +44,7 @@ typedef struct
 /* connection */
 typedef struct
 {
+	nasio_env_t *env;
 	uint64_t id;
 	int fd;
 	nasio_inaddr_t local_addr;
@@ -122,6 +123,16 @@ int nasio_add_remote(nasio_env_t *env
 int nasio_run(nasio_env_t *env, int flag);
 
 /**
+ * @brief construct a new connection && init
+ *
+ * @param env
+ * @param fd
+ *
+ * @return NULL if fail
+ */
+nasio_conn_t* nasio_conn_new(nasio_env_t *env, int fd);
+
+/**
  * @brief write bytes
  *
  * @param conn
@@ -132,6 +143,13 @@ int nasio_run(nasio_env_t *env, int flag);
  * 	   <0 error
  */
 int nasio_conn_write(nasio_conn_t *conn, const char *buf, size_t size);
+
+/**
+ * @brief close connection
+ *
+ * @param conn
+ */
+void nasio_conn_close(nasio_conn_t *conn);
 
 #ifdef __cplusplus
 }

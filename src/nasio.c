@@ -11,7 +11,7 @@
 #define offsetof(s, e) (size_t)( &(((s *)0)->e) )
 #endif
 
-#define DEBUGINFO(fmt, ...) printf(fmt, __VA_ARGS__);
+#define DEBUGINFO(...) printf(__VA_ARGS__);
 #define MAX_BACKLOG 10000
 #define ACCEPT_ONCE 5
 
@@ -31,6 +31,7 @@ typedef struct
 	nlist_node_t list_node;
 }nasio_listener_t;
 
+
 static void on_listener_cb(struct ev_loop *loop, struct ev_io *w, int revents);
 static void on_readable_cb(struct ev_loop *loop, struct ev_io *w, int revents);
 //static void on_writable_cb(struct ev_loop *loop, struct ev_io *w, int revents);
@@ -47,7 +48,6 @@ void on_listener_cb(struct ev_loop *loop, struct ev_io *w, int revents)
 	while(max-->0)
 	{
 		cfd = accept( listener->fd, (struct sockaddr *)&in4addr, &addrlen);
-		DEBUGINFO("accept new fd %d\n", cfd);
 		if( cfd<0 && error_not_ready() ) /* no pending */
 		{
 			break;	
@@ -58,32 +58,19 @@ void on_listener_cb(struct ev_loop *loop, struct ev_io *w, int revents)
 		}
 		else
 		{
-			nasio_conn_t *newconn = (nasio_conn_t *)npool_alloc( env->conn_pool );
+			nasio_conn_t *newconn = nasio_conn_new(env, cfd);
 			if( !newconn ) /* holy the shit */
 			{
-				DEBUGINFO("alloc newconn fail! connection pool available %d\n", npool_available(env->conn_pool));
 				close( cfd );
 				break;
 			}
-			newconn->id = new_conn_id(env);
-			newconn->fd = cfd;
-			nasio_net_convert_inaddr( &(newconn->remote_addr), &in4addr );/* get remote addr */
-			nasio_net_get_local_addr( cfd, &(newconn->local_addr) );/* get local addr */
-			newconn->rbuf = nbuffer_create( 1024*1024*2 );//2MB buffer
-
-			newconn->watcher.data = env;
-			/* regist event
-			 */
-			ev_io_init( &(newconn->watcher), on_readable_cb, newconn->fd, EV_READ);
-			ev_io_start( env->loop, &(newconn->watcher) );
-
-			nlist_insert_tail( &(env->conn_list), &(newconn->list_node) );
 
 			DEBUGINFO("accept connection local addr %s:%d, reomte addr %s:%d\n"
 				, nasio_net_get_dot_addr(newconn->local_addr.addr)
 				, newconn->local_addr.port
 				, nasio_net_get_dot_addr(newconn->remote_addr.addr)
 				, newconn->remote_addr.port);
+			DEBUGINFO("now conn size %d\n", env->conn_list.size);
 		}
 	}
 }
@@ -92,7 +79,6 @@ void on_readable_cb(struct ev_loop *loop, struct ev_io *w, int revents)
 {
 	ssize_t rbytes = 0;
 	char buf[1024] = { 0x00 };
-	nasio_env_t *env = (nasio_env_t *)w->data;
 	nasio_conn_t *conn = connection_of(w);
 	if( !conn->rbuf ) 
 		conn->rbuf = nbuffer_create( 1024*1024*2 );
@@ -100,21 +86,14 @@ void on_readable_cb(struct ev_loop *loop, struct ev_io *w, int revents)
 	rbytes = read( conn->fd, buf, sizeof(buf) );
 	if( rbytes<0 && !error_not_ready() )
 	{
-		
-	}
-	else if( rbytes<0 )
-	{
 		DEBUGINFO("read error, %d: %s\n", errno, strerror(errno));
-		ev_io_stop( loop, w );
-		nlist_del( &(env->conn_list), &(conn->list_node) );
-		npool_free( env->conn_pool, (char *)conn );
-		if( conn->rbuf )
-			nbuffer_destroy( conn->rbuf );
-		if( conn->sbuf )
-			nbuffer_destroy( conn->sbuf );
-		close( conn->fd );
+		nasio_conn_close(conn);
 	}
-	else
+	else if ( rbytes==0 ) {
+		DEBUGINFO("read eof, connection close by the other end\n");
+		nasio_conn_close(conn);
+	}
+	else if( rbytes>0 )
 	{
 		DEBUGINFO("read %zd bytes from %d\n", rbytes, conn->fd);
 		nbuffer_put_buf( conn->rbuf, buf, rbytes);
@@ -124,6 +103,7 @@ void on_readable_cb(struct ev_loop *loop, struct ev_io *w, int revents)
 {
 
 }*/
+
 
 nasio_env_t* nasio_env_create(int capacity)
 {
@@ -233,3 +213,45 @@ int nasio_run(nasio_env_t *env, int flag)
 	return 0;
 }
 
+nasio_conn_t* nasio_conn_new(nasio_env_t *env, int fd)
+{
+	/* allocate && init 
+	 */
+	nasio_conn_t *conn = (nasio_conn_t *)npool_alloc( env->conn_pool );
+	if( !conn ) /* holy the shit */
+	{
+		DEBUGINFO("alloc newconn fail! connection pool available %d\n", npool_available(env->conn_pool));
+		return NULL;
+	}
+	conn->env = env;
+	conn->id = new_conn_id(env);
+	conn->fd = fd;
+	nasio_net_get_local_addr( fd, &(conn->local_addr) );
+	nasio_net_get_remote_addr( fd, &(conn->remote_addr) );
+	conn->rbuf = NULL;
+	conn->sbuf = NULL;
+
+	/* add to list
+	 */
+	nlist_insert_tail( &(env->conn_list), &(conn->list_node) );
+
+	/* always care about READ, in case other end close connection.
+	 */
+	ev_io_init( &(conn->watcher), on_readable_cb, fd, EV_READ);
+	ev_io_start( env->loop, &(conn->watcher) );
+	return conn;
+}
+void nasio_conn_close(nasio_conn_t *conn)
+{
+	nasio_env_t *env = conn->env;
+	ev_io_stop( env->loop, &conn->watcher );
+	nlist_del( &(env->conn_list), &(conn->list_node) );
+	if( conn->rbuf )
+		nbuffer_destroy( conn->rbuf );
+	if( conn->sbuf )
+		nbuffer_destroy( conn->sbuf );
+	close( conn->fd );
+	npool_free( env->conn_pool, (char *)conn );
+
+	DEBUGINFO("now conn size %d\n", env->conn_list.size);
+}
