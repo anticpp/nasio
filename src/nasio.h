@@ -51,8 +51,6 @@ typedef struct
 	ev_io watcher;
 	nbuffer_t *rbuf;
 	nbuffer_t *sbuf;
-	//char *sendbuf;
-	//char *recvbuf;
 
 	nlist_node_t list_node;
 }nasio_conn_t;
@@ -123,6 +121,17 @@ int nasio_add_remote(nasio_env_t *env
  */
 int nasio_run(nasio_env_t *env, int flag);
 
+/**
+ * @brief write bytes
+ *
+ * @param conn
+ * @param buf
+ * @param size
+ *
+ * @return >0 real bytes write
+ * 	   <0 error
+ */
+int nasio_conn_write(nasio_conn_t *conn, const char *buf, size_t size);
 
 #ifdef __cplusplus
 }

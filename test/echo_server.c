@@ -19,5 +19,6 @@ int main(int argc, char* argv[])
 		return 2;
 	}
 	nasio_run(env, 0);
+
 	return 0;
 }

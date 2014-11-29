@@ -33,7 +33,7 @@ typedef struct
 
 static void on_listener_cb(struct ev_loop *loop, struct ev_io *w, int revents);
 static void on_readable_cb(struct ev_loop *loop, struct ev_io *w, int revents);
-static void on_writable_cb(struct ev_loop *loop, struct ev_io *w, int revents);
+//static void on_writable_cb(struct ev_loop *loop, struct ev_io *w, int revents);
 
 void on_listener_cb(struct ev_loop *loop, struct ev_io *w, int revents)
 {
@@ -69,8 +69,9 @@ void on_listener_cb(struct ev_loop *loop, struct ev_io *w, int revents)
 			newconn->fd = cfd;
 			nasio_net_convert_inaddr( &(newconn->remote_addr), &in4addr );/* get remote addr */
 			nasio_net_get_local_addr( cfd, &(newconn->local_addr) );/* get local addr */
-			//newcond->rbuf = nbuffer_create( 1024*1024*1 );//1MB buffer
+			newconn->rbuf = nbuffer_create( 1024*1024*2 );//2MB buffer
 
+			newconn->watcher.data = env;
 			/* regist event
 			 */
 			ev_io_init( &(newconn->watcher), on_readable_cb, newconn->fd, EV_READ);
@@ -89,20 +90,40 @@ void on_listener_cb(struct ev_loop *loop, struct ev_io *w, int revents)
 
 void on_readable_cb(struct ev_loop *loop, struct ev_io *w, int revents)
 {
-/*
+	ssize_t rbytes = 0;
+	char buf[1024] = { 0x00 };
+	nasio_env_t *env = (nasio_env_t *)w->data;
 	nasio_conn_t *conn = connection_of(w);
-	size_t maxlen = 5*1024;
+	if( !conn->rbuf ) 
+		conn->rbuf = nbuffer_create( 1024*1024*2 );
 	
-	size_t rbytes = read( conn->fd, conn->recvbuf, maxlen);
-	if( rbytes<0 )
+	rbytes = read( conn->fd, buf, sizeof(buf) );
+	if( rbytes<0 && !error_not_ready() )
 	{
-		if()
-	}*/
+		
+	}
+	else if( rbytes<0 )
+	{
+		DEBUGINFO("read error, %d: %s\n", errno, strerror(errno));
+		ev_io_stop( loop, w );
+		nlist_del( &(env->conn_list), &(conn->list_node) );
+		npool_free( env->conn_pool, (char *)conn );
+		if( conn->rbuf )
+			nbuffer_destroy( conn->rbuf );
+		if( conn->sbuf )
+			nbuffer_destroy( conn->sbuf );
+		close( conn->fd );
+	}
+	else
+	{
+		DEBUGINFO("read %zd bytes from %d\n", rbytes, conn->fd);
+		nbuffer_put_buf( conn->rbuf, buf, rbytes);
+	}
 }
-void on_writable_cb(struct ev_loop *loop, struct ev_io *w, int revents)
+/*void on_writable_cb(struct ev_loop *loop, struct ev_io *w, int revents)
 {
 
-}
+}*/
 
 nasio_env_t* nasio_env_create(int capacity)
 {
