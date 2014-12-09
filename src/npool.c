@@ -1,13 +1,16 @@
-#include <string.h>
 #include <stdlib.h>
 #include "npool.h"
 
+#define ALIGN 8
+#define round_up(n) (( n + ALIGN -1 ) & ~(ALIGN -1))
+
 npool_t* npool_create(int elemsize, int size)
 {
-	npool_t *pool = (npool_t *)malloc( sizeof(npool_t) + elemsize*size );
+	int rounds = round_up(elemsize);
+	npool_t *pool = (npool_t *)malloc( sizeof(npool_t) + rounds*size );
 	if( !pool )
 		return NULL;
-	pool->elemsize = elemsize;
+	pool->elemsize = rounds;
 	pool->size = size;
 	pool->unused = size;
 	pool->free_list = (npool_inner_head_t *)(pool+1);
@@ -16,7 +19,7 @@ npool_t* npool_create(int elemsize, int size)
 	npool_inner_head_t *obj = pool->free_list;
 	for(; i<size-1; i++)
 	{
-		obj->next = (npool_inner_head_t *)((char*)obj+elemsize);
+		obj->next = (npool_inner_head_t *)((char*)obj+rounds);
 		obj = obj->next;
 	}
 	obj->next = NULL; //end of pool
@@ -36,7 +39,6 @@ char* npool_alloc(npool_t *pool)
 	pool->free_list = pool->free_list->next;
 	--(pool->unused);
 
-	memset((char*)obj, 0x00, pool->elemsize);//reset memmory
 	return (char *)obj;
 }
 

@@ -159,6 +159,7 @@ nasio_conn_t* nasio_conn_new(nasio_env_t *env, int fd)
 	/* allocate && init 
 	 */
 	nasio_conn_t *conn = (nasio_conn_t *)npool_alloc( env->conn_pool );
+	memset((char*)conn, 0x00, sizeof(nasio_conn_t));
 	if( !conn ) /* holy the shit */
 	{
 		DEBUGINFO("alloc newconn fail! connection pool available %d\n", npool_available(env->conn_pool));

@@ -5,6 +5,7 @@
 #include <gtest/gtest.h>
 #include "nlist.h"
 #include "npool.h"
+#include "npool.c" //for white test
 #include "nbuffer.h"
 /*
  * Unit test with gtest.
@@ -175,7 +176,7 @@ protected:
 	}
 	~NPoolTest() {}
 	
-	const static int ELEMSIZE = 40;
+	const static int ELEMSIZE = 13;
 	const static int POOLSIZE = 10;
 
 	virtual void SetUp() 
@@ -198,6 +199,10 @@ TEST_F(NPoolTest, NPoolTestCreate)
 
 	ASSERT_TRUE( pool );
 	ASSERT_EQ( npool_available(pool), int(POOLSIZE) ); 
+
+	/* size should be round up
+	 */
+	ASSERT_EQ( pool->elemsize, round_up(ELEMSIZE) );
 }
 
 TEST_F(NPoolTest, NPoolTestOperate)
@@ -214,8 +219,6 @@ TEST_F(NPoolTest, NPoolTestOperate)
 	ASSERT_TRUE( elem1!=NULL );
 	ASSERT_TRUE( elem2!=NULL );
         ASSERT_EQ( npool_available(pool), POOLSIZE-2 );
-        ASSERT_TRUE( (elem1 - (char*)pool - sizeof(npool_t))%ELEMSIZE==0 );
-        ASSERT_TRUE( (elem2 - (char*)pool - sizeof(npool_t))%ELEMSIZE==0 );
 
 	/* free
 	 */
