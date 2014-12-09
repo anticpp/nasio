@@ -29,6 +29,9 @@ typedef struct
 	ev_io watcher;
 
 	nlist_node_t list_node;
+
+	nasio_conn_cmd_factory_t *factory;
+	nasio_conn_event_handler_t *handler;
 }nasio_listener_t;
 
 
@@ -64,6 +67,8 @@ void on_listener_cb(struct ev_loop *loop, struct ev_io *w, int revents)
 				close( cfd );
 				break;
 			}
+			newconn->factory = listener->factory;
+			newconn->handler = listener->handler;
 
 			DEBUGINFO("accept connection local addr %s:%d, reomte addr %s:%d\n"
 				, nasio_net_get_dot_addr(newconn->local_addr.addr)
@@ -71,6 +76,9 @@ void on_listener_cb(struct ev_loop *loop, struct ev_io *w, int revents)
 				, nasio_net_get_dot_addr(newconn->remote_addr.addr)
 				, newconn->remote_addr.port);
 			DEBUGINFO("now conn size %d\n", env->conn_list.size);
+
+			if( newconn->handler && newconn->handler->on_connect )
+				newconn->handler->on_connect( newconn );
 		}
 	}
 }
@@ -96,7 +104,26 @@ void on_readable_cb(struct ev_loop *loop, struct ev_io *w, int revents)
 	else if( rbytes>0 )
 	{
 		DEBUGINFO("read %zd bytes from %d\n", rbytes, conn->fd);
-		nbuffer_put_buf( conn->rbuf, buf, rbytes);
+		nbuffer_put_buf( conn->rbuf, buf, rbytes );
+
+		nbuffer_flip( conn->rbuf );
+		int expect = conn->factory->frame(conn->rbuf);
+		if( expect<0 ) //error
+		{
+			DEBUGINFO("factory::frame error, %d\n", conn->fd);
+			nasio_conn_close(conn);
+		}
+		else if( nbuffer_remain(conn->rbuf)>=expect )
+		{
+			nbuffer_t tbuf;
+			nbuffer_slice( &tbuf, conn->rbuf );
+			nbuffer_set_limit( &tbuf, conn->rbuf->pos+expect );
+			if( conn->handler && conn->handler->on_process )
+				conn->handler->on_process( conn, &tbuf );
+
+			nbuffer_set_pos(conn->rbuf, conn->rbuf->pos+expect);
+		}
+		nbuffer_compact( conn->rbuf );
 	}
 }
 /*void on_writable_cb(struct ev_loop *loop, struct ev_io *w, int revents)
@@ -148,12 +175,15 @@ int nasio_env_destroy(nasio_env_t *env)
 int nasio_add_listen(nasio_env_t *env
 	, const char *ip
 	, short port
+	, nasio_conn_cmd_factory_t *factory
 	, nasio_conn_event_handler_t *handler)
 {
 	struct sockaddr_in in4addr;
 	int rv = 0;
 	nasio_listener_t *listener = (nasio_listener_t *)malloc( sizeof(nasio_listener_t) );
 	listener->watcher.data = env;//attach env
+	listener->factory = factory;
+	listener->handler = handler;
 
 	listener->fd = socket(AF_INET, SOCK_STREAM, 0);
 	if( listener->fd<0 )
@@ -202,6 +232,7 @@ int nasio_add_listen(nasio_env_t *env
 int nasio_add_remote(nasio_env_t *env
 	, const char *ip
 	, short port
+	, nasio_conn_cmd_factory_t *factory
 	, nasio_conn_event_handler_t *handler)
 {
 	return 0;
@@ -243,6 +274,7 @@ nasio_conn_t* nasio_conn_new(nasio_env_t *env, int fd)
 }
 void nasio_conn_close(nasio_conn_t *conn)
 {
+
 	nasio_env_t *env = conn->env;
 	ev_io_stop( env->loop, &conn->watcher );
 	nlist_del( &(env->conn_list), &(conn->list_node) );
@@ -251,7 +283,12 @@ void nasio_conn_close(nasio_conn_t *conn)
 	if( conn->sbuf )
 		nbuffer_destroy( conn->sbuf );
 	close( conn->fd );
+
+	if( conn->handler && conn->handler->on_close )
+		conn->handler->on_close( conn );
+
 	npool_free( env->conn_pool, (char *)conn );
 
 	DEBUGINFO("now conn size %d\n", env->conn_list.size);
+
 }

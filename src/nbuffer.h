@@ -73,6 +73,21 @@ typedef struct
  */
 nbuffer_t* nbuffer_create(int size);
 
+
+/**
+ * @brief copy a reference
+ *
+ * @param to
+ * @param src
+ *
+ */
+#define nbuffer_slice(to, src)\
+	((to)->buf) = ((src)->buf);\
+	((to)->pos) = ((src)->pos);\
+	((to)->limit) = ((src)->limit);\
+	((to)->mark) = ((src)->mark);\
+	((to)->capacity) = ((src)->capacity);\
+
 /**
  * @brief remain len of buffer
  *
@@ -138,14 +153,33 @@ int nbuffer_compact(nbuffer_t *nbuf);
  *
  * @return 
  */
-#define nbuffer_set_pos(b, pos)\
+#define nbuffer_set_pos(b, p)\
 do{\
-	if( (pos)<=(b)->limit )\
+	if( (p)<=(b)->limit )\
 	{\
-		(b)->pos = pos;\
-		if( (b)->mark>pos )\
+		(b)->pos = p;\
+		if( (b)->mark>p )\
 			(b)->mark = -1;\
 	}\
+}while(0)\
+
+/**
+ * @brief set limit
+ *
+ * @param b
+ * @param p
+ *
+ * @return 
+ */
+#define nbuffer_set_limit(b, p)\
+do{\
+	if( (p)>(b)->capacity )\
+		break;\
+	if( (b)->pos>(p) )\
+		(b)->pos = (p);\
+	if( (b)->mark>(p) )\
+		(b)->mark = (p);\
+	(b)->limit = (p);\
 }while(0)\
 
 /**

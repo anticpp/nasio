@@ -1,0 +1,4 @@
+#!/bin/bash
+
+test ! -d libs && echo "mkdir libs ..." && mkdir libs
+test ! -d bin && echo "mkdir bin ..." && mkdir bin 

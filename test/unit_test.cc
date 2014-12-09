@@ -322,7 +322,7 @@ TEST_F(NBufferTest, NBufferTestOperate)
 	ASSERT_EQ( nbuf->limit, nbuf->capacity );
 	ASSERT_EQ( nbuf->mark, -1 );
 }
-TEST_F(NBufferTest, NBufferTestMark)
+TEST_F(NBufferTest, NBufferTestMarkReset)
 {
 	/* Test for reset.
 	 */
@@ -340,6 +340,38 @@ TEST_F(NBufferTest, NBufferTestMark)
 	nbuffer_flip( nbuf );
 	nbuffer_get_buf( nbuf, buf, sizeof(buf) );
 	ASSERT_TRUE( strncmp(buf, "HELLOGUI", sizeof(buf))==0 ) << "buf is: " << buf;
+}
+TEST_F(NBufferTest, NBufferTestSetLimit)
+{
+	char tmp[] = "HELLO WORLD";
+	char tmp1[1024] = {0};
+	int len = strlen(tmp);
+	nbuffer_put_buf( nbuf, tmp, len );
+	nbuffer_flip( nbuf );
+
+	int cur = nbuf->pos;
+	/* Origin content
+	 */
+	memset(tmp1, 0x00, sizeof(tmp1));
+	nbuffer_get_buf( nbuf, tmp1, sizeof(tmp1) );
+	ASSERT_TRUE( strcmp(tmp1, "HELLO WORLD")==0 ) << "tmp1: " << tmp1;
+	
+	/* Normal limit
+	 */
+	nbuffer_set_pos( nbuf, cur );
+	nbuffer_set_limit( nbuf, len-6 );
+	memset(tmp1, 0x00, sizeof(tmp1));
+	nbuffer_get_buf( nbuf, tmp1, sizeof(tmp1) );
+	ASSERT_TRUE( strcmp(tmp1, "HELLO")==0 );
+
+	/* Beyond capacity
+	 * Nothing change
+	 */
+	nbuffer_set_pos( nbuf, cur );
+	nbuffer_set_limit( nbuf, nbuf->capacity+10 );
+	memset(tmp1, 0x00, sizeof(tmp1));
+	nbuffer_get_buf( nbuf, tmp1, sizeof(tmp1) );
+	ASSERT_TRUE( strcmp(tmp1, "HELLO")==0 );
 }
 
 int main(int argc, char* argv[])

@@ -21,6 +21,10 @@
 extern "C" {
 #endif
 
+typedef struct nasio_conn_s nasio_conn_t;
+typedef struct nasio_conn_cmd_factory_s nasio_conn_cmd_factory_t;
+typedef struct nasio_conn_event_handler_s nasio_conn_event_handler_t;
+
 typedef struct 
 {
 	struct ev_loop *loop;
@@ -41,8 +45,21 @@ typedef struct
 	int workers;
 }nasio_env_opt_t;
 */
+
+struct nasio_conn_cmd_factory_s
+{
+	int (*frame)(nbuffer_t *);
+};
+
+struct nasio_conn_event_handler_s 
+{
+	void (*on_connect)(nasio_conn_t *); //when connection established.
+	void (*on_close)(nasio_conn_t *); //when connection closed.
+	void (*on_process)(nasio_conn_t *, nbuffer_t *);
+};
+
 /* connection */
-typedef struct
+struct nasio_conn_s
 {
 	nasio_env_t *env;
 	uint64_t id;
@@ -54,13 +71,10 @@ typedef struct
 	nbuffer_t *sbuf;
 
 	nlist_node_t list_node;
-}nasio_conn_t;
 
-typedef struct 
-{
-	void (*on_connect)(nasio_conn_t *); //when connection established.
-	void (*on_close)(nasio_conn_t *); //when connection closed.
-}nasio_conn_event_handler_t;
+	nasio_conn_cmd_factory_t *factory;
+	nasio_conn_event_handler_t *handler;
+};
 
 /**
  * @brief Create nasio environment.
@@ -86,6 +100,7 @@ int nasio_env_destroy(nasio_env_t *env);
  * @param env  
  * @param ip  
  * @param port 
+ * @param factory
  * @param handler 
  *
  * @return 0 success
@@ -94,6 +109,7 @@ int nasio_env_destroy(nasio_env_t *env);
 int nasio_add_listen(nasio_env_t *env
 	, const char *ip
 	, short port
+	, nasio_conn_cmd_factory_t *factory
 	, nasio_conn_event_handler_t *handler);
 
 /**
@@ -102,6 +118,7 @@ int nasio_add_listen(nasio_env_t *env
  * @param env
  * @param ip
  * @param port
+ * @param factory
  * @param handler
  *
  * @return 0 success
@@ -110,6 +127,7 @@ int nasio_add_listen(nasio_env_t *env
 int nasio_add_remote(nasio_env_t *env
 	, const char *ip
 	, short port
+	, nasio_conn_cmd_factory_t *factory
 	, nasio_conn_event_handler_t *handler);
 
 /**
