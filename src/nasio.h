@@ -106,7 +106,7 @@ int nasio_env_destroy(nasio_env_t *env);
  * @return 0 success
  * 	   <0 fail
  */
-int nasio_add_listen(nasio_env_t *env
+int nasio_env_add_listen(nasio_env_t *env
 	, const char *ip
 	, short port
 	, nasio_conn_cmd_factory_t *factory
@@ -124,7 +124,7 @@ int nasio_add_listen(nasio_env_t *env
  * @return 0 success
  * 	   <0 fail
  */
-int nasio_add_remote(nasio_env_t *env
+int nasio_env_add_remote(nasio_env_t *env
 	, const char *ip
 	, short port
 	, nasio_conn_cmd_factory_t *factory
@@ -138,29 +138,19 @@ int nasio_add_remote(nasio_env_t *env
  *
  * @return 
  */
-int nasio_run(nasio_env_t *env, int flag);
-
-/**
- * @brief construct a new connection && init
- *
- * @param env
- * @param fd
- *
- * @return NULL if fail
- */
-nasio_conn_t* nasio_conn_new(nasio_env_t *env, int fd);
+int nasio_env_run(nasio_env_t *env, int flag);
 
 /**
  * @brief write bytes
  *
  * @param conn
  * @param buf
- * @param size
+ * @param len
  *
  * @return >0 real bytes write
  * 	   <0 error
  */
-int nasio_conn_write(nasio_conn_t *conn, const char *buf, size_t size);
+int nasio_conn_write_buffer(nasio_conn_t *conn, const char *buf, size_t len);
 
 /**
  * @brief close connection

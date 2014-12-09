@@ -7,19 +7,17 @@
 #include "nasio.h"
 #include "nasio_net.h"
 
-#ifndef offsetof
-#define offsetof(s, e) (size_t)( &(((s *)0)->e) )
-#endif
-
 #define DEBUGINFO(...) printf(__VA_ARGS__);
 #define MAX_BACKLOG 10000
 #define ACCEPT_ONCE 5
 
+#ifndef offsetof
+#define offsetof(s, e) (size_t)( &(((s *)0)->e) )
+#endif
+
 #define listener_of(w) ( (nasio_listener_t *)((char *)w-offsetof(nasio_listener_t, watcher)) )
 #define connection_of(w) ( (nasio_conn_t *)((char *)w-offsetof(nasio_conn_t, watcher)) )
-
 #define error_not_ready() ( errno==EAGAIN || errno==EWOULDBLOCK )
-
 #define new_conn_id(env) ( (++((env)->conn_id_gen)) % 0x00ffffffffffffff )
 
 typedef struct
@@ -36,8 +34,10 @@ typedef struct
 
 
 static void on_listener_cb(struct ev_loop *loop, struct ev_io *w, int revents);
-static void on_readable_cb(struct ev_loop *loop, struct ev_io *w, int revents);
-//static void on_writable_cb(struct ev_loop *loop, struct ev_io *w, int revents);
+static void on_fd_event_cb(struct ev_loop *loop, struct ev_io *w, int revents);
+static void on_fd_readable_cb(struct ev_loop *loop, struct ev_io *w, int revents);
+static void on_fd_writable_cb(struct ev_loop *loop, struct ev_io *w, int revents);
+static nasio_conn_t* nasio_conn_new(nasio_env_t *env, int fd);
 
 void on_listener_cb(struct ev_loop *loop, struct ev_io *w, int revents)
 {
@@ -83,13 +83,27 @@ void on_listener_cb(struct ev_loop *loop, struct ev_io *w, int revents)
 	}
 }
 
-void on_readable_cb(struct ev_loop *loop, struct ev_io *w, int revents)
+void on_fd_event_cb(struct ev_loop *loop, struct ev_io *w, int revents)
+{
+	nasio_conn_t *conn = connection_of(w);
+	if( revents & EV_READ )
+		on_fd_readable_cb( loop, w, revents );
+	else if( revents & EV_WRITE )
+		on_fd_writable_cb( loop, w, revents );
+	else if( revents & EV_ERROR )
+	{
+		DEBUGINFO("fd event error, close it now, fd %d\n", conn->fd);
+		nasio_conn_close( conn );
+	}
+}
+
+void on_fd_readable_cb(struct ev_loop *loop, struct ev_io *w, int revents)
 {
 	ssize_t rbytes = 0;
 	char buf[1024] = { 0x00 };
 	nasio_conn_t *conn = connection_of(w);
 	if( !conn->rbuf ) 
-		conn->rbuf = nbuffer_create( 1024*1024*2 );
+		conn->rbuf = nbuffer_create( 2*1024*1024 );
 	
 	rbytes = read( conn->fd, buf, sizeof(buf) );
 	if( rbytes<0 && !error_not_ready() )
@@ -126,11 +140,50 @@ void on_readable_cb(struct ev_loop *loop, struct ev_io *w, int revents)
 		nbuffer_compact( conn->rbuf );
 	}
 }
-/*void on_writable_cb(struct ev_loop *loop, struct ev_io *w, int revents)
+void on_fd_writable_cb(struct ev_loop *loop, struct ev_io *w, int revents)
 {
+	nasio_conn_t *conn = connection_of(w);
+	nasio_env_t *env = conn->env;
+	ev_io *watcher = &(conn->watcher);
+	nbuffer_flip( conn->sbuf );
+	printf("on_fd_writable_cb, fd %d, remain %d\n", conn->fd, nbuffer_remain(conn->sbuf) );
+	nbuffer_compact( conn->sbuf );
 
-}*/
+	ev_io_stop( env->loop, watcher );
+	ev_io_set( watcher, conn->fd, watcher->events & (~EV_WRITE) );
+	ev_io_start( env->loop, watcher );
+}
 
+nasio_conn_t* nasio_conn_new(nasio_env_t *env, int fd)
+{
+	/* allocate && init 
+	 */
+	nasio_conn_t *conn = (nasio_conn_t *)npool_alloc( env->conn_pool );
+	if( !conn ) /* holy the shit */
+	{
+		DEBUGINFO("alloc newconn fail! connection pool available %d\n", npool_available(env->conn_pool));
+		return NULL;
+	}
+	conn->env = env;
+	conn->id = new_conn_id(env);
+	conn->fd = fd;
+	nasio_net_get_local_addr( fd, &(conn->local_addr) );
+	nasio_net_get_remote_addr( fd, &(conn->remote_addr) );
+	conn->rbuf = NULL;
+	conn->sbuf = NULL;
+
+	/* add to list
+	 */
+	nlist_insert_tail( &(env->conn_list), &(conn->list_node) );
+
+	/* always care about READ, in case other end close connection.
+	 */
+	ev_io_init( &(conn->watcher), on_fd_event_cb, fd, EV_READ);
+	ev_io_start( env->loop, &(conn->watcher) );
+	return conn;
+}
+
+/* user interface */
 
 nasio_env_t* nasio_env_create(int capacity)
 {
@@ -172,7 +225,7 @@ int nasio_env_destroy(nasio_env_t *env)
 	return 0;
 }
 
-int nasio_add_listen(nasio_env_t *env
+int nasio_env_add_listen(nasio_env_t *env
 	, const char *ip
 	, short port
 	, nasio_conn_cmd_factory_t *factory
@@ -188,7 +241,7 @@ int nasio_add_listen(nasio_env_t *env
 	listener->fd = socket(AF_INET, SOCK_STREAM, 0);
 	if( listener->fd<0 )
 	{
-		printf("create socket fail\n");
+		DEBUGINFO("create socket fail\n");
 		free( listener );
 		return -1;
 	}
@@ -208,7 +261,7 @@ int nasio_add_listen(nasio_env_t *env
 	rv = bind(listener->fd, (struct sockaddr *)&in4addr, sizeof(struct sockaddr_in));
 	if( rv<0 )
 	{
-		printf("bind address fail\n");
+		DEBUGINFO("bind address fail\n");
 		close(listener->fd);
 		free( listener );
 		return -1;
@@ -229,7 +282,7 @@ int nasio_add_listen(nasio_env_t *env
 	return 0;
 }
 
-int nasio_add_remote(nasio_env_t *env
+int nasio_env_add_remote(nasio_env_t *env
 	, const char *ip
 	, short port
 	, nasio_conn_cmd_factory_t *factory
@@ -238,43 +291,41 @@ int nasio_add_remote(nasio_env_t *env
 	return 0;
 }
 
-int nasio_run(nasio_env_t *env, int flag)
+int nasio_env_run(nasio_env_t *env, int flag)
 {
 	ev_run(env->loop, flag);
 	return 0;
 }
 
-nasio_conn_t* nasio_conn_new(nasio_env_t *env, int fd)
+
+int nasio_conn_write_buffer(nasio_conn_t *conn, const char *buf, size_t len)
 {
-	/* allocate && init 
-	 */
-	nasio_conn_t *conn = (nasio_conn_t *)npool_alloc( env->conn_pool );
-	if( !conn ) /* holy the shit */
+	DEBUGINFO("connection write buffer, fd %d, size %zu\n", conn->fd, len);
+	size_t bytes = 0;
+	nasio_env_t *env = conn->env;
+	ev_io* watcher = &(conn->watcher);
+
+	if( !conn->sbuf )
+		conn->sbuf = nbuffer_create( 2*1024*1024 );
+	bytes = nbuffer_put_buf( conn->sbuf, buf, len );
+	if( bytes!=len )//error
 	{
-		DEBUGINFO("alloc newconn fail! connection pool available %d\n", npool_available(env->conn_pool));
-		return NULL;
+		DEBUGINFO("write buffer fail, nbuffer overflow, fd %d\n", conn->fd);
+		nasio_conn_close( conn );
+		return -1;
 	}
-	conn->env = env;
-	conn->id = new_conn_id(env);
-	conn->fd = fd;
-	nasio_net_get_local_addr( fd, &(conn->local_addr) );
-	nasio_net_get_remote_addr( fd, &(conn->remote_addr) );
-	conn->rbuf = NULL;
-	conn->sbuf = NULL;
-
-	/* add to list
-	 */
-	nlist_insert_tail( &(env->conn_list), &(conn->list_node) );
-
-	/* always care about READ, in case other end close connection.
-	 */
-	ev_io_init( &(conn->watcher), on_readable_cb, fd, EV_READ);
-	ev_io_start( env->loop, &(conn->watcher) );
-	return conn;
+	if( watcher->events & EV_WRITE )
+		return 0;
+	
+	DEBUGINFO("reset io event now, fd %d\n", conn->fd);
+	ev_io_stop( env->loop, watcher );
+	ev_io_set( watcher, conn->fd, watcher->events | EV_WRITE );
+	ev_io_start( env->loop, watcher );
+	return 0;
 }
+
 void nasio_conn_close(nasio_conn_t *conn)
 {
-
 	nasio_env_t *env = conn->env;
 	ev_io_stop( env->loop, &conn->watcher );
 	nlist_del( &(env->conn_list), &(conn->list_node) );

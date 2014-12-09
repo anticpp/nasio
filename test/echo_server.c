@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include "nasio.h"
 
 int echo_frame(nbuffer_t *buf);
@@ -24,13 +25,13 @@ int main(int argc, char* argv[])
 	handler->on_close = echo_on_close;
 	handler->on_process = echo_on_process;
 
-	rv = nasio_add_listen(env, "*", 12388, factory, handler);
+	rv = nasio_env_add_listen(env, "*", 12388, factory, handler);
 	if( rv!=0 )
 	{
 		printf("add listener fail\n");
 		return 2;
 	}
-	nasio_run(env, 0);
+	nasio_env_run(env, 0);
 
 	return 0;
 }
@@ -53,15 +54,17 @@ int echo_frame(nbuffer_t *buf)
 }
 void echo_on_connect(nasio_conn_t *conn)
 {
-	printf("echo server comes a connection\n");
+	printf("echo server comes a connection, id %llu\n", conn->id);
 }
 void echo_on_close(nasio_conn_t *conn)
 {
-	printf("echo server close a connection\n");
+	printf("echo server close a connection, id %llu\n", conn->id);
 }
 void echo_on_process(nasio_conn_t *conn, nbuffer_t *buf)
 {
 	int remain = nbuffer_remain( buf );
 	*(buf->buf+buf->limit-1) = '\0';//\n => \0
 	printf("echo process, size %d, %s\n", remain, buf->buf+buf->pos);
+	if( nasio_conn_write_buffer(conn, buf->buf+buf->pos, remain-1)<0 )
+		printf("echo write buffer error\n");
 }
