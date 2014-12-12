@@ -5,7 +5,6 @@
 #include <gtest/gtest.h>
 #include "nlist.h"
 #include "npool.h"
-#include "npool.c" //for white test
 #include "nbuffer.h"
 /*
  * Unit test with gtest.
@@ -165,7 +164,6 @@ TEST_F(NListTest, NListTestDeleteAll)
 	nlist_del( list2, &(data_arr[4].node) );
 	ASSERT_TRUE( nlist_isempty( list2) );
 }
-
 /** Test case: npool **/
 class NPoolTest : public ::testing::Test
 {
@@ -199,10 +197,6 @@ TEST_F(NPoolTest, NPoolTestCreate)
 
 	ASSERT_TRUE( pool );
 	ASSERT_EQ( npool_available(pool), int(POOLSIZE) ); 
-
-	/* size should be round up
-	 */
-	ASSERT_EQ( pool->elemsize, round_up(ELEMSIZE) );
 }
 
 TEST_F(NPoolTest, NPoolTestOperate)
@@ -250,13 +244,15 @@ TEST_F(NPoolTest, NPoolTestAllocAll)
 class NBufferTest : public ::testing::Test
 {
 protected:
-	const static int BUFSIZE = 1024*1024;
-
 	NBufferTest() 
 	{ 
 		nbuf = NULL; 
 	}
-	~NBufferTest() {}
+	~NBufferTest() 
+	{
+	}
+
+	const static size_t BUFSIZE = 4*1024; //4KB
 	
 	virtual void SetUp()
 	{
@@ -281,9 +277,31 @@ TEST_F(NBufferTest, NBufferTestCreate)
 
 	ASSERT_TRUE( nbuf->buf!=NULL );
 	EXPECT_EQ( nbuf->pos, 0 );
-	EXPECT_EQ( nbuf->capacity, int(BUFSIZE) );
+	EXPECT_EQ( nbuf->capacity, size_t(BUFSIZE) );
 	EXPECT_EQ( nbuf->limit, nbuf->capacity );
 	EXPECT_EQ( nbuffer_remain(nbuf), nbuf->capacity );
+}
+TEST_F(NBufferTest, NBufferTestExpand)
+{
+	ssize_t bytes = 0;
+	nbuffer_t *newb = NULL;
+	char content[] = "HELLO WORLD";
+	char tmp[100] = {0};
+	size_t newsize = ( nbuf->capacity >> 2 );
+
+	bytes = nbuffer_put_buf( nbuf, content, sizeof(content) );
+	ASSERT_EQ( bytes, sizeof(content) );
+
+	newb = nbuffer_expand( nbuf );
+	ASSERT_EQ( newsize, newb->capacity );
+
+	nbuffer_flip( newb );
+	ASSERT_EQ( nbuffer_remain(newb), sizeof(content) );
+	bytes = nbuffer_get_buf( newb, tmp, sizeof(tmp)-1 );
+	ASSERT_EQ( bytes, sizeof(content) );
+	ASSERT_EQ( strncmp(content, tmp, sizeof(content)), 0 );
+
+	nbuffer_compact( newb );
 }
 TEST_F(NBufferTest, NBufferTestOperate)
 {
@@ -291,8 +309,8 @@ TEST_F(NBufferTest, NBufferTestOperate)
 	 */
 	char tmp[] = "HELLO WORLD";
 	char tmp1[6] = {0};
-	int wbytes = 0, rbytes = 0;
-	int remain = 0;
+	ssize_t wbytes = 0, rbytes = 0;
+	size_t remain = 0;
 
 	/* Write
 	 */

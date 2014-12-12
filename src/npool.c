@@ -51,4 +51,6 @@ int npool_free(npool_t *pool, char *element)
 	return 0;
 }
 
+#undef ALIGN
+#undef round_up
 

@@ -32,6 +32,16 @@ typedef struct
 	nasio_conn_event_handler_t *handler;
 }nasio_listener_t;
 
+typedef struct 
+{
+	int fd;
+	nasio_inaddr_t addr;
+	ev_io watcher;
+
+	nlist_node_t list_node;
+	nasio_conn_cmd_factory_t *factory;
+	nasio_conn_event_handler_t *handler;
+}nasio_connector_t;
 
 static void on_listener_cb(struct ev_loop *loop, struct ev_io *w, int revents);
 static void on_fd_event_cb(struct ev_loop *loop, struct ev_io *w, int revents);
@@ -146,7 +156,7 @@ void on_fd_writable_cb(struct ev_loop *loop, struct ev_io *w, int revents)
 	nasio_env_t *env = conn->env;
 	ev_io *watcher = &(conn->watcher);
 	nbuffer_flip( conn->sbuf );
-	printf("on_fd_writable_cb, fd %d, remain %d\n", conn->fd, nbuffer_remain(conn->sbuf) );
+	printf("on_fd_writable_cb, fd %d, remain %lu\n", conn->fd, nbuffer_remain(conn->sbuf) );
 	nbuffer_compact( conn->sbuf );
 
 	ev_io_stop( env->loop, watcher );
@@ -232,9 +242,11 @@ int nasio_env_add_listen(nasio_env_t *env
 	, nasio_conn_cmd_factory_t *factory
 	, nasio_conn_event_handler_t *handler)
 {
-	struct sockaddr_in in4addr;
 	int rv = 0;
+	struct sockaddr_in in4addr;
 	nasio_listener_t *listener = (nasio_listener_t *)malloc( sizeof(nasio_listener_t) );
+	if( !listener )
+		return -1;
 	listener->watcher.data = env;//attach env
 	listener->factory = factory;
 	listener->handler = handler;
@@ -283,14 +295,17 @@ int nasio_env_add_listen(nasio_env_t *env
 	return 0;
 }
 
+#if 0
 int nasio_env_add_remote(nasio_env_t *env
 	, const char *ip
 	, short port
 	, nasio_conn_cmd_factory_t *factory
 	, nasio_conn_event_handler_t *handler)
 {
+	nasio_connector_t *connector = (nasio_connector_t *)malloc( sizeof(nasio_connector_t) );
 	return 0;
 }
+#endif
 
 int nasio_env_run(nasio_env_t *env, int flag)
 {

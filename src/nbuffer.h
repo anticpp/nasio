@@ -50,6 +50,8 @@
 #ifndef _NASIO_NBUFFER_H_
 #define _NASIO_NBUFFER_H_
 
+#include <stdlib.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -57,11 +59,11 @@ extern "C" {
 typedef struct
 {
 	char *buf;
-	int pos;
-	int limit;
-	int mark;
+	size_t pos;
+	size_t limit;
+	size_t capacity;
 
-	int capacity;
+	ssize_t mark;
 }nbuffer_t;
 
 /**
@@ -71,8 +73,17 @@ typedef struct
  *
  * @return - NULL if fail
  */
-nbuffer_t* nbuffer_create(int size);
+nbuffer_t* nbuffer_create(size_t size);
 
+/**
+ * @brief expand buffer
+ *
+ * @param buf
+ *
+ * @return - new nbuffer 
+ * 	   - NULL fail
+ */
+nbuffer_t* nbuffer_expand(nbuffer_t *buf);
 
 /**
  * @brief copy a reference
@@ -104,9 +115,10 @@ nbuffer_t* nbuffer_create(int size);
  * @param buf
  * @param dlen - max len to put
  *
- * @return - real bytes put
+ * @return - >=0 real bytes put
+ * 	     <0  error
  */
-int nbuffer_put_buf(nbuffer_t *nbuf, const char *buf, int dlen);
+ssize_t nbuffer_put_buf(nbuffer_t *nbuf, const char *buf, size_t dlen);
 
 /**
  * @brief get data from buffer
@@ -115,9 +127,10 @@ int nbuffer_put_buf(nbuffer_t *nbuf, const char *buf, int dlen);
  * @param buf
  * @param dlen
  *
- * @return real bytes get
+ * @return - >=0 real bytes get
+ * 	     <0 error
  */
-int nbuffer_get_buf(nbuffer_t *nbuf, char *buf, int dlen);
+ssize_t nbuffer_get_buf(nbuffer_t *nbuf, char *buf, size_t dlen);
 
 /**
  * @brief flip before READ
@@ -139,9 +152,9 @@ do{\
  *
  * @param nbuf
  *
- * @return 
+ * @return remain bytes
  */
-int nbuffer_compact(nbuffer_t *nbuf);
+void nbuffer_compact(nbuffer_t *nbuf);
 
 /**
  * @brief set position.

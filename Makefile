@@ -29,11 +29,11 @@ lib:$(LIBNASIO)
 $(LIBNASIO):$(OBJNASIO)
 	$(AR) rc $@ $^
 
-$(UNIT_TEST): test/unit_test.o $(LIBNASIO)
-	$(CXX) $^ -o $@ $(LIBNASIO) $(LIBS)
+$(UNIT_TEST): test/unit_test.o $(OBJNASIO)
+	$(CXX) $^ -o $@ $(LIBS)
 
 $(ECHO_SERVER): test/echo_server.o $(LIBNASIO)
 	$(CXX) $^ -o $@ $(LIBNASIO) $(LIBS)
 
 clean:
-	rm -fv $(OBJNASIO) $(DEPNASIO) $(OBJTEST) $(DEPTEST) $(TARGETS) 
+	rm -fv $(TARGETS) src/*.o src/*.d test/*.o test/*.d
