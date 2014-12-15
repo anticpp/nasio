@@ -275,94 +275,129 @@ TEST_F(NBufferTest, NBufferTestCreate)
 	/* Test for create is ok.
 	 */
 
-	ASSERT_TRUE( nbuf->buf!=NULL );
+	ASSERT_TRUE( nbuf!=NULL );
 	EXPECT_EQ( nbuf->pos, 0 );
 	EXPECT_EQ( nbuf->capacity, size_t(BUFSIZE) );
 	EXPECT_EQ( nbuf->limit, nbuf->capacity );
 	EXPECT_EQ( nbuffer_remain(nbuf), nbuf->capacity );
 }
-TEST_F(NBufferTest, NBufferTestExpand)
+TEST_F(NBufferTest, NBufferTestRequire)
 {
-	ssize_t bytes = 0;
-	nbuffer_t *newb = NULL;
-	char content[] = "HELLO WORLD";
+	int rv = 0;
 	char tmp[100] = {0};
-	size_t newsize = ( nbuf->capacity >> 2 );
+	nbuffer_t *nbuf1 = nbuffer_create(100);
+	ASSERT_TRUE( nbuf1!=NULL );
 
-	bytes = nbuffer_put_buf( nbuf, content, sizeof(content) );
-	ASSERT_EQ( bytes, sizeof(content) );
+	nbuffer_put_buf( nbuf1, tmp, 90 );
+	ASSERT_EQ( nbuffer_remain(nbuf1), 10 );
 
-	newb = nbuffer_expand( nbuf );
-	ASSERT_EQ( newsize, newb->capacity );
+	nbuffer_flip( nbuf1 );
+	nbuffer_get_buf( nbuf1, tmp, 20 );
 
-	nbuffer_flip( newb );
-	ASSERT_EQ( nbuffer_remain(newb), sizeof(content) );
-	bytes = nbuffer_get_buf( newb, tmp, sizeof(tmp)-1 );
-	ASSERT_EQ( bytes, sizeof(content) );
-	ASSERT_EQ( strncmp(content, tmp, sizeof(content)), 0 );
+	nbuffer_rewind( nbuf1 );
 
-	nbuffer_compact( newb );
+	ASSERT_EQ( nbuffer_remain(nbuf1), 10 );
+	rv = nbuffer_require( &nbuf1, 20 );//just compact is ok
+	ASSERT_EQ( rv, 0 );
+	ASSERT_EQ( nbuffer_remain(nbuf1), 30 );
+	ASSERT_EQ( nbuf1->pos, 70 );
+	ASSERT_EQ( nbuf1->capacity, 100 );
+
+	rv = nbuffer_require( &nbuf1, 40 );//need enlarge
+	ASSERT_EQ( rv, 0 );
+	ASSERT_EQ( nbuf1->pos, 70 );
+	ASSERT_EQ( nbuf1->capacity, int(100<<1) );
+	ASSERT_EQ( nbuffer_remain(nbuf1), int((100<<1) - 70) );
 }
 TEST_F(NBufferTest, NBufferTestOperate)
 {
 	/* Test for read/write operations.
 	 */
-	char tmp[] = "HELLO WORLD";
-	char tmp1[6] = {0};
+	char content[] = "HELLO WORLD";
+	char content2[] = ", NBUFFER.";
+	char tmp[64] = {0};
 	ssize_t wbytes = 0, rbytes = 0;
-	size_t remain = 0;
+	ssize_t wbytes2 = 0, rbytes2 = 0;
+	//size_t remain = 0;
 
 	/* Write
+	 * EXPECT: "HELLO WORLD""
 	 */
-	wbytes = nbuffer_put_buf( nbuf, tmp, sizeof(tmp)-1 );
-	ASSERT_EQ( wbytes, sizeof(tmp)-1 );
+	wbytes = nbuffer_put_buf( nbuf, content, sizeof(content)-1 );
+	ASSERT_EQ( wbytes, sizeof(content)-1 );
 	ASSERT_EQ( nbuf->pos, wbytes );
-	ASSERT_EQ( nbuffer_remain(nbuf), nbuf->capacity-sizeof(tmp)+1 );
+	ASSERT_EQ( nbuffer_remain(nbuf), nbuf->capacity-sizeof(content)+1 );
 
 	/* Flip
+	 * EXPECT: "HELLO WORLD"
 	 */
 	nbuffer_flip( nbuf );
 	ASSERT_EQ( nbuf->pos, 0 );
 	ASSERT_EQ( nbuf->limit, wbytes );
-	ASSERT_EQ( nbuffer_remain(nbuf), sizeof(tmp)-1 );
+	ASSERT_EQ( nbuffer_remain(nbuf), wbytes );
 	ASSERT_EQ( nbuf->mark, -1 );
 
 	/* Read
+	 * EXPECT: " WORLD"
 	 */
-	remain = nbuffer_remain( nbuf );
-	rbytes = nbuffer_get_buf( nbuf, tmp1, sizeof(tmp1)-1 );
-	ASSERT_EQ( rbytes, sizeof(tmp1)-1 );
-	ASSERT_EQ( nbuffer_remain(nbuf), remain-rbytes );
-	ASSERT_TRUE( strncmp(tmp1, "HELLO", sizeof(tmp1)-1)==0 );
+	rbytes = nbuffer_get_buf( nbuf, tmp, 5 );//read 5 bytes
+	ASSERT_EQ( rbytes, 5 );
+	ASSERT_EQ( nbuf->pos, rbytes );
+	ASSERT_EQ( nbuffer_remain(nbuf), wbytes-rbytes );
+	ASSERT_TRUE( strncmp(tmp, "HELLO", sizeof(tmp))==0 );
+
+	/* Rewind
+	 * EXPECT: " WORLD"
+	 */
+	nbuffer_rewind( nbuf );
+	ASSERT_EQ( nbuf->pos, wbytes );
+	ASSERT_EQ( nbuf->limit, nbuf->capacity );
+	ASSERT_EQ( nbuf->mark, rbytes );
+
+	/* Write.2
+	 * EXPECT " WORLD, NBUFFER."
+	 */
+	wbytes2 = nbuffer_put_buf( nbuf, content2, sizeof(content2)-1 );
+	ASSERT_EQ( wbytes2, sizeof(content2)-1 );
+	ASSERT_EQ( nbuf->pos, wbytes2+wbytes );
+	ASSERT_EQ( nbuffer_remain(nbuf), nbuf->capacity-sizeof(content)-sizeof(content2)+2 );
+
+	/* Flip.2
+	 * EXPECT: " WORLD, NBUFFER."
+	 */
+	nbuffer_flip( nbuf );
+	ASSERT_EQ( nbuf->pos, rbytes );
+	ASSERT_EQ( nbuf->limit,  wbytes+wbytes2 );
+	ASSERT_EQ( nbuffer_remain(nbuf), wbytes+wbytes2-rbytes );
+	ASSERT_EQ( nbuf->mark, -1 );
+
+	/* Read.2
+	 * EXPECT: "D, NBUFFER."
+	 */
+	memset(tmp, 0x00, sizeof(tmp));
+	rbytes2 = nbuffer_get_buf( nbuf, tmp, 5 );//read 5 bytes
+	ASSERT_EQ( rbytes2, 5 );
+	ASSERT_EQ( nbuf->pos, rbytes+rbytes2 );
+	ASSERT_EQ( nbuffer_remain(nbuf), wbytes+wbytes2-rbytes-rbytes2 );
+	ASSERT_TRUE( strncmp(tmp, " WORL", sizeof(tmp))==0 );
+
+	/* Rewind.2
+	 * EXPECT: "D, NBUFFER."
+	 */
+	nbuffer_rewind( nbuf );
+	ASSERT_EQ( nbuf->pos, wbytes+wbytes2 );
+	ASSERT_EQ( nbuf->limit, nbuf->capacity );
+	ASSERT_EQ( nbuf->mark, rbytes+rbytes2 );
 
 	/* Compact
 	 */
 	nbuffer_compact( nbuf );
-	ASSERT_EQ( nbuffer_remain(nbuf), nbuf->capacity-(wbytes-rbytes) );
-	ASSERT_EQ( nbuf->pos, wbytes-rbytes);
+	ASSERT_EQ( nbuf->pos, wbytes+wbytes2-rbytes-rbytes2 );
 	ASSERT_EQ( nbuf->limit, nbuf->capacity );
+	ASSERT_EQ( nbuffer_remain(nbuf), nbuf->capacity-(wbytes+wbytes2-rbytes-rbytes2) );
 	ASSERT_EQ( nbuf->mark, -1 );
 }
-TEST_F(NBufferTest, NBufferTestMarkReset)
-{
-	/* Test for reset.
-	 */
-	char tmp[] = "HELLO WORLD";
-	char tmp1[] = "GUI";
-	char buf[20] = {0};
-
-	nbuffer_put_buf( nbuf, tmp, 5 ); //write 'HELLO'
-	nbuffer_mark( nbuf );//mark now
-	ASSERT_EQ( nbuf->mark, nbuf->pos );
-	nbuffer_put_buf( nbuf, tmp+5, 6); //write ' WORLD'
-	nbuffer_reset( nbuf ); //reset
-	nbuffer_put_buf( nbuf, tmp1, sizeof(tmp1)-1 );//write 'GUI'
-
-	nbuffer_flip( nbuf );
-	nbuffer_get_buf( nbuf, buf, sizeof(buf) );
-	ASSERT_TRUE( strncmp(buf, "HELLOGUI", sizeof(buf))==0 ) << "buf is: " << buf;
-}
-TEST_F(NBufferTest, NBufferTestSetLimit)
+TEST_F(NBufferTest, NBufferTestSetPosLimit)
 {
 	char tmp[] = "HELLO WORLD";
 	char tmp1[1024] = {0};

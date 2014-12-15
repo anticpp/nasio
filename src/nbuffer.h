@@ -10,6 +10,7 @@
  * |                                   |
  * pos                                 limit
  *                                     capacity
+ * (mark=-1)
  *
  * WRITE:
  * +-----------------------------------+
@@ -18,6 +19,7 @@
  *         |                           |
  *         pos                         limit
  *                                     capacity
+ * (mark=-1)
  *
  * FLIP:
  * +-----------------------------------+
@@ -25,23 +27,31 @@
  * +-----------------------------------+
  * |       |                           |
  * pos     limit                       capacity
+ * (mark=-1)
  *                                     
- *
  * READ:
  * +-----------------------------------+
- * |   |///|                           |
+ * |   |/////|                         |
  * +-----------------------------------+
- *     |   |                           |
- *     pos limit                       capacity
+ *     |     |                         |
+ *     pos   limit                     capacity
+ * (mark=-1)
  *   
- *                                  
+ * REWIND:
+ * +-----------------------------------+
+ * |   |/////|                         |
+ * +-----------------------------------+
+ *     |     |                         |
+ *     mark  pos                       limit
+ *                                     capacity
  * COMPACT:
  * +-----------------------------------+
- * |///| <--memmove                    |
+ * |/////| <-- memove                  |
  * +-----------------------------------+
- *     |                               |
- *     pos                             limit
- *                                     capacity
+ *       |                             |
+ *       pos                           limit
+ *       			       capacity
+ * (mark=-1)
  *
  * @author supergui@live.cn
  * @version 
@@ -76,14 +86,18 @@ typedef struct
 nbuffer_t* nbuffer_create(size_t size);
 
 /**
- * @brief expand buffer
+ * @brief require more buffer.
+ * 	  if not enough, try compact first. 
+ * 	  still not enough, try recursivly enlarge 2*capacity each time, until fits the require.
  *
  * @param buf
  *
- * @return - new nbuffer 
- * 	   - NULL fail
+ * @param size - 'size' more bytes require
+ *
+ * @return - 0 succ
+ * 	   - <0 fail
  */
-nbuffer_t* nbuffer_expand(nbuffer_t *buf);
+int nbuffer_require(nbuffer_t **pnbuf, size_t size);
 
 /**
  * @brief copy a reference
@@ -142,8 +156,24 @@ ssize_t nbuffer_get_buf(nbuffer_t *nbuf, char *buf, size_t dlen);
 #define nbuffer_flip(b)\
 do{\
 	(b)->limit = (b)->pos;\
-	(b)->pos = 0;\
+	if( (b)->mark>=0 )\
+		(b)->pos = (b)->mark;\
+	else\
+		(b)->pos = 0;\
 	(b)->mark = -1;\
+}while(0)\
+
+/**
+ * @brief 
+ *
+ * @param nbuf
+ */
+#define nbuffer_rewind(b)\
+do{\
+	if( (b)->pos>0 )\
+		(b)->mark = (b)->pos;\
+	(b)->pos = (b)->limit;\
+	(b)->limit = (b)->capacity;\
 }while(0)\
 
 /** 
@@ -155,6 +185,7 @@ do{\
  * @return remain bytes
  */
 void nbuffer_compact(nbuffer_t *nbuf);
+
 
 /**
  * @brief set position.
@@ -196,28 +227,6 @@ do{\
 }while(0)\
 
 /**
- * @brief mark the current position.
- *
- * @param b
- *
- * @return 
- */
-#define nbuffer_mark(b)	( (b)->mark=(b)->pos )
-
-/**
- * @brief reset the position to previous-marked position.
- *
- * @param b
- *
- * @return 
- */
-#define nbuffer_reset(b)\
-do{\
-	if((b)->mark!=-1)\
-		(b)->pos=(b)->mark;\
-}while(0)\
-
-/**
  * @brief 
  *
  * @param b
@@ -236,7 +245,7 @@ do{\
  *
  * @param buffer
  */
-void nbuffer_destroy(nbuffer_t *buffer);
+void nbuffer_destroy(nbuffer_t *nbuf);
 
 #ifdef __cplusplus
 }
