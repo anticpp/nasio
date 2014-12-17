@@ -22,8 +22,13 @@ int nbuffer_require(nbuffer_t **pnbuf, size_t size)
 	size_t newsize = 0;
 	nbuffer_t old;
 	nbuffer_t *newb = NULL;
-
 	nbuffer_t *nbuf = *pnbuf;
+
+	if( nbuffer_remain(nbuf)>=size )
+		return 0;
+
+	/* try compact
+	 */
 	nbuffer_compact( nbuf );
 	if( nbuffer_remain(nbuf)>=size )
 		return 0;

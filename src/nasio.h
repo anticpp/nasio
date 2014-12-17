@@ -48,7 +48,7 @@ typedef struct
 
 struct nasio_conn_cmd_factory_s
 {
-	int (*frame)(nbuffer_t *);
+	ssize_t (*frame)(nbuffer_t *);
 };
 
 struct nasio_conn_event_handler_s 
@@ -68,7 +68,7 @@ struct nasio_conn_s
 	nasio_inaddr_t remote_addr;
 	ev_io watcher;
 	nbuffer_t *rbuf;
-	nbuffer_t *sbuf;
+	nbuffer_t *wbuf;
 
 	nlist_node_t list_node;
 

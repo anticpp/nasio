@@ -109,13 +109,26 @@ void on_fd_event_cb(struct ev_loop *loop, struct ev_io *w, int revents)
 
 void on_fd_readable_cb(struct ev_loop *loop, struct ev_io *w, int revents)
 {
+	size_t hungry = 4*1024;
 	ssize_t rbytes = 0;
-	char buf[1024] = { 0x00 };
 	nasio_conn_t *conn = connection_of(w);
 	if( !conn->rbuf ) 
-		conn->rbuf = nbuffer_create( 2*1024*1024 );
-	
-	rbytes = read( conn->fd, buf, sizeof(buf) );
+		conn->rbuf = nbuffer_create( 8*1024 );//8KB
+	if( !conn->rbuf )
+	{
+		DEBUGINFO("create read nbuffer fail, close connection, fd %d\n", conn->fd);
+		nasio_conn_close( conn );
+		return;
+	}
+
+	if( nbuffer_require( &(conn->rbuf), hungry )<0 )
+	{
+		DEBUGINFO("nbuffer require %lu bytes fail, now size %lu. close connection %d now.\n", hungry, conn->rbuf->capacity, conn->fd);
+		nasio_conn_close(conn);
+		return ;
+	}
+
+	rbytes = read( conn->fd, conn->rbuf->buf+conn->rbuf->pos, hungry );
 	if( rbytes<0 && !error_not_ready() )
 	{
 		DEBUGINFO("read error, %d: %s\n", errno, strerror(errno));
@@ -128,14 +141,15 @@ void on_fd_readable_cb(struct ev_loop *loop, struct ev_io *w, int revents)
 	else if( rbytes>0 )
 	{
 		DEBUGINFO("read %zd bytes from %d\n", rbytes, conn->fd);
-		nbuffer_put_buf( conn->rbuf, buf, rbytes );
+		nbuffer_set_pos( conn->rbuf, conn->rbuf->pos+rbytes );
 
 		nbuffer_flip( conn->rbuf );
-		int expect = conn->factory->frame(conn->rbuf);
+		ssize_t expect = conn->factory->frame(conn->rbuf);
 		if( expect<0 ) //error
 		{
-			DEBUGINFO("factory::frame error, %d\n", conn->fd);
+			DEBUGINFO("factory::frame error, fd %d\n", conn->fd);
 			nasio_conn_close(conn);
+			return;
 		}
 		else if( nbuffer_remain(conn->rbuf)>=expect )
 		{
@@ -145,9 +159,9 @@ void on_fd_readable_cb(struct ev_loop *loop, struct ev_io *w, int revents)
 			if( conn->handler && conn->handler->on_process )
 				conn->handler->on_process( conn, &tbuf );
 
-			nbuffer_set_pos(conn->rbuf, conn->rbuf->pos+expect);
+			nbuffer_set_pos( conn->rbuf, conn->rbuf->pos+expect );
 		}
-		nbuffer_compact( conn->rbuf );
+		nbuffer_rewind( conn->rbuf );
 	}
 }
 void on_fd_writable_cb(struct ev_loop *loop, struct ev_io *w, int revents)
@@ -155,13 +169,38 @@ void on_fd_writable_cb(struct ev_loop *loop, struct ev_io *w, int revents)
 	nasio_conn_t *conn = connection_of(w);
 	nasio_env_t *env = conn->env;
 	ev_io *watcher = &(conn->watcher);
-	nbuffer_flip( conn->sbuf );
-	printf("on_fd_writable_cb, fd %d, remain %lu\n", conn->fd, nbuffer_remain(conn->sbuf) );
-	nbuffer_compact( conn->sbuf );
+	size_t wbytes = 0;
+	ssize_t realwbytes = 0;
+	size_t hungry = 4*1024;//most 4KB once
+	ssize_t remain = 0;
 
-	ev_io_stop( env->loop, watcher );
-	ev_io_set( watcher, conn->fd, watcher->events & (~EV_WRITE) );
-	ev_io_start( env->loop, watcher );
+	nbuffer_flip( conn->wbuf );
+	printf("on_fd_writable_cb, fd %d, remain %lu\n", conn->fd, nbuffer_remain(conn->wbuf) );
+	wbytes = nbuffer_remain( conn->wbuf );
+	if( wbytes>=hungry )
+		wbytes=hungry;
+	realwbytes = write( conn->fd, conn->wbuf->buf+conn->wbuf->pos, wbytes );
+	if( realwbytes<0 && !error_not_ready() )
+	{
+		DEBUGINFO("write error, fd %d,  %d %s\n", conn->fd, errno, strerror(errno));
+		nasio_conn_close(conn);
+		return;
+	}
+	else if( realwbytes>0 )
+	{
+		nbuffer_set_pos( conn->wbuf, conn->wbuf->pos+realwbytes );
+	}
+	remain = nbuffer_remain( conn->wbuf );
+	nbuffer_rewind( conn->wbuf );
+
+	//remove write
+	if( remain<=0 )
+	{
+		DEBUGINFO("write out all buffer, fd %d\n", conn->fd);
+		ev_io_stop( env->loop, watcher );
+		ev_io_set( watcher, conn->fd, watcher->events & (~EV_WRITE) );
+		ev_io_start( env->loop, watcher );
+	}
 }
 
 nasio_conn_t* nasio_conn_new(nasio_env_t *env, int fd)
@@ -181,7 +220,7 @@ nasio_conn_t* nasio_conn_new(nasio_env_t *env, int fd)
 	nasio_net_get_local_addr( fd, &(conn->local_addr) );
 	nasio_net_get_remote_addr( fd, &(conn->remote_addr) );
 	conn->rbuf = NULL;
-	conn->sbuf = NULL;
+	conn->wbuf = NULL;
 
 	/* add to list
 	 */
@@ -317,27 +356,40 @@ int nasio_env_run(nasio_env_t *env, int flag)
 int nasio_conn_write_buffer(nasio_conn_t *conn, const char *buf, size_t len)
 {
 	DEBUGINFO("connection write buffer, fd %d, size %zu\n", conn->fd, len);
-	size_t bytes = 0;
+	size_t wbytes = 0;
 	nasio_env_t *env = conn->env;
 	ev_io* watcher = &(conn->watcher);
 
-	if( !conn->sbuf )
-		conn->sbuf = nbuffer_create( 2*1024*1024 );
-	bytes = nbuffer_put_buf( conn->sbuf, buf, len );
-	if( bytes!=len )//error
+	if( !conn->wbuf )
+		conn->wbuf = nbuffer_create( 8*1024 );//4KB
+	if( !conn->wbuf )
+	{
+		DEBUGINFO("create write nbuffer fail, close connection, fd %d\n", conn->fd);
+		nasio_conn_close( conn );
+		return -1;
+	}
+	if( nbuffer_require( &(conn->wbuf), len )<0 )
+	{
+		DEBUGINFO("require nbuffer fail, size %lu, now capacity %lu. close connection, fd %d\n", len, conn->wbuf->capacity, conn->fd);
+		nasio_conn_close( conn );
+		return -1;
+	}
+
+	wbytes = nbuffer_put_buf( conn->wbuf, buf, len );
+	if( wbytes!=len )//error
 	{
 		DEBUGINFO("write buffer fail, nbuffer overflow, fd %d\n", conn->fd);
 		nasio_conn_close( conn );
 		return -1;
 	}
 	if( watcher->events & EV_WRITE )
-		return 0;
+		return wbytes;
 	
 	DEBUGINFO("reset io event now, fd %d\n", conn->fd);
 	ev_io_stop( env->loop, watcher );
 	ev_io_set( watcher, conn->fd, watcher->events | EV_WRITE );
 	ev_io_start( env->loop, watcher );
-	return 0;
+	return wbytes;
 }
 
 void nasio_conn_close(nasio_conn_t *conn)
@@ -347,8 +399,8 @@ void nasio_conn_close(nasio_conn_t *conn)
 	nlist_del( &(env->conn_list), &(conn->list_node) );
 	if( conn->rbuf )
 		nbuffer_destroy( conn->rbuf );
-	if( conn->sbuf )
-		nbuffer_destroy( conn->sbuf );
+	if( conn->wbuf )
+		nbuffer_destroy( conn->wbuf );
 	close( conn->fd );
 
 	if( conn->handler && conn->handler->on_close )
