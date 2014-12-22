@@ -1,7 +1,5 @@
 # Targets
-unit_test
-main
-echo_server
+bin/*
 
 # ctags
 tags

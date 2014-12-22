@@ -52,6 +52,13 @@ int nasio_net_convert_inaddr(nasio_inaddr_t *to, struct sockaddr_in *from)
 	return 0;
 }
 
+int nasio_net_convert_to_inaddr(struct sockaddr_in *to, nasio_inaddr_t *from)
+{
+	to->sin_addr.s_addr = htonl( from->addr );
+	to->sin_port = htons( from->port );
+	return 0;
+}
+
 const char* nasio_net_get_dot_addr(unsigned long addr)
 {
 	struct in_addr inaddr;

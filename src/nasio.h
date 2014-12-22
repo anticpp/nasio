@@ -25,15 +25,24 @@ typedef struct nasio_conn_s nasio_conn_t;
 typedef struct nasio_conn_cmd_factory_s nasio_conn_cmd_factory_t;
 typedef struct nasio_conn_event_handler_s nasio_conn_event_handler_t;
 
+typedef enum 
+{
+	NASIO_LOOP_FOREVER = 0x00,
+	NASIO_LOOP_NONBLOCK= 0x01
+
+}nasio_loop_type_e;
+
 typedef struct 
 {
 	struct ev_loop *loop;
 	npool_t *conn_pool;
-	nlist_t listen_list;
-	nlist_t remote_list;
+	nlist_t listener_list;
+	nlist_t connector_list;
 	nlist_t conn_list;
 
 	uint64_t conn_id_gen;
+
+	uint64_t now_time_us;
 }nasio_env_t;
 /*
 typedef struct
@@ -74,6 +83,7 @@ struct nasio_conn_s
 
 	nasio_conn_cmd_factory_t *factory;
 	nasio_conn_event_handler_t *handler;
+	void *connector;
 };
 
 /**
@@ -134,7 +144,7 @@ int nasio_env_add_remote(nasio_env_t *env
  * @brief run
  *
  * @param env
- * @param flag
+ * @param flag - value of nasio_loop_type_e
  *
  * @return 
  */

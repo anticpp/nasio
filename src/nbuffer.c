@@ -13,6 +13,9 @@ nbuffer_t* nbuffer_create(size_t size)
 	nbuf->limit = size;
 	nbuf->capacity = size;
 	nbuf->mark = -1;
+
+	nbuf->compact_cnt = 0;
+	nbuf->realloc_cnt = 0;
 	return nbuf;
 }
 
@@ -37,6 +40,8 @@ int nbuffer_require(nbuffer_t **pnbuf, size_t size)
 	old.limit = nbuf->limit;
 	old.capacity = nbuf->capacity;
 	old.mark = nbuf->mark;
+	old.compact_cnt = nbuf->compact_cnt;
+	old.realloc_cnt = nbuf->realloc_cnt;
 
 	for( ; try<10; try++ )//max 2^10
 	{
@@ -55,6 +60,8 @@ int nbuffer_require(nbuffer_t **pnbuf, size_t size)
 	newb->limit = newsize;
 	newb->capacity = newsize;
 	newb->mark = old.mark;
+	newb->compact_cnt = old.compact_cnt;
+	newb->realloc_cnt = (++old.realloc_cnt);
 
 	*pnbuf = newb;
 
@@ -102,6 +109,8 @@ void nbuffer_compact(nbuffer_t *nbuf)
 	nbuf->limit = remain;
 	nbuf->mark = -1;
 	nbuffer_rewind( nbuf );//rewind back to WRITE mode
+
+	nbuf->compact_cnt ++;
 	return ;
 }
 

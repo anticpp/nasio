@@ -4,21 +4,50 @@
 #include <errno.h>
 #include <string.h>
 #include <arpa/inet.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <time.h>
+#include <sys/time.h>
 #include "nasio.h"
 #include "nasio_net.h"
 
-#define DEBUGINFO(...) printf(__VA_ARGS__);
+#define DEBUGINFO(...) fprintf(stderr, __VA_ARGS__);
 #define MAX_BACKLOG 10000
 #define ACCEPT_ONCE 5
+
+#define CONNECT_RETRY_INTERVAL 3
 
 #ifndef offsetof
 #define offsetof(s, e) (size_t)( &(((s *)0)->e) )
 #endif
 
+#define microsecond(sec) ((sec)*1000000)
+#define now_time_sec(env) (((env)->now_time_us)/1000000)
+#define now_time_usec(env) ((env)->now_time_us)
+
 #define listener_of(w) ( (nasio_listener_t *)((char *)w-offsetof(nasio_listener_t, watcher)) )
 #define connection_of(w) ( (nasio_conn_t *)((char *)w-offsetof(nasio_conn_t, watcher)) )
+
+#define connector_of_list(n) ( (nasio_connector_t *)((char *)n-offsetof(nasio_connector_t, list_node)) )
+#define connector_of_watcher(w) ( (nasio_connector_t *)((char *)w-offsetof(nasio_connector_t, watcher)) )
+
 #define error_not_ready() ( errno==EAGAIN || errno==EWOULDBLOCK )
 #define new_conn_id(env) ( (++((env)->conn_id_gen)) % 0x00ffffffffffffff )
+
+#define connector_set_retry(env, connector)\
+do{\
+	((connector)->state) = NASIO_CONNECT_STATE_RETRY;\
+	((connector)->retry_cnt)++;\
+	((connector)->last_try) = ((env)->now_time_us)/1000000;\
+}while(0)\
+
+typedef enum
+{
+	NASIO_CONNECT_STATE_WAIT = 0,
+	NASIO_CONNECT_STATE_PENDING = 1,
+	NASIO_CONNECT_STATE_DONE = 2,
+	NASIO_CONNECT_STATE_RETRY = 3 
+}nasio_connect_stat_e;
 
 typedef struct
 {
@@ -41,13 +70,19 @@ typedef struct
 	nlist_node_t list_node;
 	nasio_conn_cmd_factory_t *factory;
 	nasio_conn_event_handler_t *handler;
+
+	int state;
+	int retry_cnt;
+	time_t last_try;
 }nasio_connector_t;
 
+static void on_listener_cb(struct ev_loop *loop, struct ev_io *w, int revents);
 static void on_listener_cb(struct ev_loop *loop, struct ev_io *w, int revents);
 static void on_fd_event_cb(struct ev_loop *loop, struct ev_io *w, int revents);
 static void on_fd_readable_cb(struct ev_loop *loop, struct ev_io *w, int revents);
 static void on_fd_writable_cb(struct ev_loop *loop, struct ev_io *w, int revents);
-static nasio_conn_t* nasio_conn_new(nasio_env_t *env, int fd);
+static nasio_conn_t* nasio_conn_new(nasio_env_t *env, int fd, nasio_conn_event_handler_t *handler, nasio_conn_cmd_factory_t *factory);
+static void nasio_process_connector(nasio_env_t *env);
 
 void on_listener_cb(struct ev_loop *loop, struct ev_io *w, int revents)
 {
@@ -71,14 +106,12 @@ void on_listener_cb(struct ev_loop *loop, struct ev_io *w, int revents)
 		}
 		else
 		{
-			nasio_conn_t *newconn = nasio_conn_new(env, cfd);
+			nasio_conn_t *newconn = nasio_conn_new(env, cfd, listener->handler, listener->factory);
 			if( !newconn ) /* holy the shit */
 			{
 				close( cfd );
 				break;
 			}
-			newconn->factory = listener->factory;
-			newconn->handler = listener->handler;
 
 			DEBUGINFO("accept connection local addr %s:%d, reomte addr %s:%d\n"
 				, nasio_net_get_dot_addr(newconn->local_addr.addr)
@@ -86,11 +119,57 @@ void on_listener_cb(struct ev_loop *loop, struct ev_io *w, int revents)
 				, nasio_net_get_dot_addr(newconn->remote_addr.addr)
 				, newconn->remote_addr.port);
 			DEBUGINFO("now conn size %d\n", env->conn_list.size);
-
-			if( newconn->handler && newconn->handler->on_connect )
-				newconn->handler->on_connect( newconn );
 		}
 	}
+}
+void on_connector_cb(struct ev_loop *loop, struct ev_io *w, int revents)
+{
+	int rv = 0;
+	int error = 0; 
+	unsigned int n = sizeof(int);
+	nasio_env_t *env = (nasio_env_t *)w->data;
+	nasio_connector_t *connector = connector_of_watcher( w );
+
+	/* whatever stop event
+	 */
+	ev_io_stop( loop, &(connector->watcher) );
+
+	//DEBUGINFO("on_connector_cb fd %d\n", connector->fd);
+	if( (revents & EV_READ) || (revents & EV_WRITE) )
+	{
+		rv = getsockopt(connector->fd, SOL_SOCKET, SO_ERROR, &error, &n);
+		if( rv<0 || error )
+			goto retry;
+		
+		//DEBUGINFO("[on_connector_cb] connect succ, fd %d\n", connector->fd);
+		/* connect succ
+		*/
+		nasio_conn_t *newconn = nasio_conn_new(env
+				, connector->fd
+				, connector->handler
+				, connector->factory);
+		if( !newconn )
+			goto retry;
+		newconn->connector = connector;
+
+		connector->state = NASIO_CONNECT_STATE_DONE;
+		nlist_del( &(env->connector_list), &(connector->list_node) );
+	}
+	else if( revents & EV_ERROR )
+	{
+		goto retry;
+	}
+	else{
+		/* never comes here
+		 */
+	}
+
+	return;
+
+retry:
+	close( connector->fd );
+	connector_set_retry( env, connector );
+	return ;
 }
 
 void on_fd_event_cb(struct ev_loop *loop, struct ev_io *w, int revents)
@@ -203,7 +282,10 @@ void on_fd_writable_cb(struct ev_loop *loop, struct ev_io *w, int revents)
 	}
 }
 
-nasio_conn_t* nasio_conn_new(nasio_env_t *env, int fd)
+nasio_conn_t* nasio_conn_new(nasio_env_t *env
+		, int fd
+		, nasio_conn_event_handler_t *handler
+		, nasio_conn_cmd_factory_t *factory)
 {
 	/* allocate && init 
 	 */
@@ -219,6 +301,8 @@ nasio_conn_t* nasio_conn_new(nasio_env_t *env, int fd)
 	conn->fd = fd;
 	nasio_net_get_local_addr( fd, &(conn->local_addr) );
 	nasio_net_get_remote_addr( fd, &(conn->remote_addr) );
+	conn->handler = handler;
+	conn->factory = factory;
 	conn->rbuf = NULL;
 	conn->wbuf = NULL;
 
@@ -230,7 +314,77 @@ nasio_conn_t* nasio_conn_new(nasio_env_t *env, int fd)
 	 */
 	ev_io_init( &(conn->watcher), on_fd_event_cb, fd, EV_READ);
 	ev_io_start( env->loop, &(conn->watcher) );
+
+	if( conn->handler && conn->handler->on_connect )
+		conn->handler->on_connect( conn );
+
 	return conn;
+}
+void nasio_process_connector(nasio_env_t *env)
+{
+	int rv = 0;
+	struct sockaddr_in in4addr;
+	nlist_node_t *next = env->connector_list.head;
+	while( next )
+	{
+		nasio_connector_t *connector = connector_of_list( next );
+		memset(&in4addr, 0x00, sizeof(in4addr));
+		nasio_net_convert_to_inaddr( &in4addr, &(connector->addr) );
+		if( connector->state==NASIO_CONNECT_STATE_WAIT )
+		{
+			connector->fd = socket(AF_INET, SOCK_STREAM, 0);
+			if( connector->fd<0 )
+				break;
+			nasio_net_set_block( connector->fd, 0 );//set nonblock
+
+			rv = connect( connector->fd, (struct sockaddr *)&in4addr, sizeof(in4addr) );
+			if( rv==0 )//succ
+			{
+				//DEBUGINFO("[nasio_process_connector] connect succ, fd %d\n", connector->fd);
+				nasio_conn_t *newconn = nasio_conn_new(env
+							, connector->fd
+							, connector->handler
+							, connector->factory);
+				if( !newconn )
+				{
+					close( connector->fd );
+					break;
+				}
+				newconn->connector = connector;
+				
+				connector->state = NASIO_CONNECT_STATE_DONE;
+				nlist_del( &(env->connector_list), &(connector->list_node) );
+			}
+			if( rv<0 && errno==EINPROGRESS )
+			{
+				connector->state = NASIO_CONNECT_STATE_PENDING;
+				ev_io_init( &(connector->watcher), on_connector_cb, connector->fd, EV_READ | EV_WRITE );
+				ev_io_start( env->loop, &(connector->watcher) );
+				//DEBUGINFO("connect in PROGRESS, fd %d\n", connector->fd);
+			}
+			else if( rv<0 )
+			{
+				close( connector->fd );
+				connector_set_retry( env, connector );
+			}
+		}
+		else if( connector->state==NASIO_CONNECT_STATE_RETRY 
+				&&  now_time_sec(env)-connector->last_try>=CONNECT_RETRY_INTERVAL )
+		{
+			DEBUGINFO("retry connect %s:%d, last try %lu, retry cnt %d\n"
+					, nasio_net_get_dot_addr(connector->addr.addr)
+					, connector->addr.port
+					, connector->last_try
+					, connector->retry_cnt);
+			connector->state = NASIO_CONNECT_STATE_WAIT;
+		}
+
+		/* else state==NASIO_CONNECT_STATE_RETRY || state==NASIO_CONNECT_STATE_PENDING
+		 * do nothing
+		 */
+
+		next = next->next;
+	}
 }
 
 /* user interface */
@@ -249,8 +403,8 @@ nasio_env_t* nasio_env_create(int capacity)
 	if( !env->conn_pool )
 		goto fail;
 
-	nlist_init( &(env->listen_list) );
-	nlist_init( &(env->remote_list) );
+	nlist_init( &(env->listener_list) );
+	nlist_init( &(env->connector_list) );
 	nlist_init( &(env->conn_list) );
 
 	env->conn_id_gen = 0;
@@ -329,26 +483,60 @@ int nasio_env_add_listen(nasio_env_t *env
 	ev_io_init(&listener->watcher, on_listener_cb, listener->fd, EV_READ);
 	ev_io_start(env->loop, &(listener->watcher));
 
-	nlist_insert_tail( &(env->listen_list), &(listener->list_node) );
+	nlist_insert_tail( &(env->listener_list), &(listener->list_node) );
 
 	return 0;
 }
 
-#if 0
 int nasio_env_add_remote(nasio_env_t *env
 	, const char *ip
 	, short port
 	, nasio_conn_cmd_factory_t *factory
 	, nasio_conn_event_handler_t *handler)
 {
+	struct sockaddr_in in4addr;
 	nasio_connector_t *connector = (nasio_connector_t *)malloc( sizeof(nasio_connector_t) );
+	if( !connector )
+		return -1;
+
+	memset(connector, 0x00, sizeof(nasio_connector_t));
+	connector->watcher.data = env;
+	connector->handler = handler;
+	connector->factory = factory;
+	connector->state = NASIO_CONNECT_STATE_WAIT;
+
+	memset(&in4addr, 0x00, sizeof(struct sockaddr_in));
+	in4addr.sin_family = AF_INET;
+	in4addr.sin_port = htons(port);
+	in4addr.sin_addr.s_addr = inet_addr(ip);
+	nasio_net_convert_inaddr( &(connector->addr), &in4addr );
+
+	//append to list
+	nlist_insert_tail( &(env->connector_list), &(connector->list_node));
+	
 	return 0;
 }
-#endif
 
 int nasio_env_run(nasio_env_t *env, int flag)
 {
-	ev_run(env->loop, flag);
+	struct timeval tm;
+	while(1)
+	{
+		//update time
+		if( gettimeofday( &tm, NULL)<0 )
+			return -1;
+		env->now_time_us = tm.tv_sec*1000000+tm.tv_usec;
+
+		ev_loop(env->loop, EVLOOP_NONBLOCK);
+
+		//deal with connector
+		nasio_process_connector( env );
+
+		if( flag==NASIO_LOOP_NONBLOCK )
+			break;
+		else
+			usleep(1000*10);
+	}
 	return 0;
 }
 
@@ -406,8 +594,14 @@ void nasio_conn_close(nasio_conn_t *conn)
 	if( conn->handler && conn->handler->on_close )
 		conn->handler->on_close( conn );
 
-	npool_free( env->conn_pool, (char *)conn );
+	/* TODO: make it reconnect
+	 */
+	if( conn->connector )
+	{
 
+	}
+
+	npool_free( env->conn_pool, (char *)conn );
 	DEBUGINFO("now conn size %d\n", env->conn_list.size);
 
 }

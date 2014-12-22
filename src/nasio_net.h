@@ -78,6 +78,16 @@ int nasio_net_get_remote_addr(int fd, nasio_inaddr_t *addr);
 int nasio_net_convert_inaddr(nasio_inaddr_t *to, struct sockaddr_in *from);
 
 /**
+ * @brief convert from nasio_inaddr_t to struct sockaddr_in
+ *
+ * @param to
+ * @param from
+ *
+ * @return 
+ */
+int nasio_net_convert_to_inaddr(struct sockaddr_in *to, nasio_inaddr_t *from);
+
+/**
  * @brief convert to string ip like "192.168.1.1"
  *
  * @param addr

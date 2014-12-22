@@ -74,6 +74,10 @@ typedef struct
 	size_t capacity;
 
 	ssize_t mark;
+	
+	//for statistic
+	int compact_cnt;
+	int realloc_cnt;
 }nbuffer_t;
 
 /**
