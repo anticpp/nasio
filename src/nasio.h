@@ -162,13 +162,6 @@ int nasio_env_run(nasio_env_t *env, int flag);
  */
 int nasio_conn_write_buffer(nasio_conn_t *conn, const char *buf, size_t len);
 
-/**
- * @brief close connection
- *
- * @param conn
- */
-void nasio_conn_close(nasio_conn_t *conn);
-
 #ifdef __cplusplus
 }
 #endif
