@@ -39,9 +39,9 @@ typedef struct
 	nlist_t listener_list;
 	nlist_t connector_list;
 	nlist_t conn_list;
+	nlist_t close_conn_list;
 
 	uint64_t conn_id_gen;
-
 	uint64_t now_time_us;
 }nasio_env_t;
 /*
@@ -83,6 +83,7 @@ struct nasio_conn_s
 
 	nasio_conn_cmd_factory_t *factory;
 	nasio_conn_event_handler_t *handler;
+
 	void *connector;
 };
 
@@ -161,6 +162,13 @@ int nasio_env_run(nasio_env_t *env, int flag);
  * 	   <0 error
  */
 int nasio_conn_write_buffer(nasio_conn_t *conn, const char *buf, size_t len);
+
+/**
+ * @brief close connection
+ *
+ * @param conn
+ */
+void nasio_conn_close(nasio_conn_t *conn);
 
 #ifdef __cplusplus
 }
