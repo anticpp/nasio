@@ -133,7 +133,7 @@ void on_connector_cb(struct ev_loop *loop, struct ev_io *w, int revents)
 	nasio_env_t *env = (nasio_env_t *)w->data;
 	nasio_connector_t *connector = connector_of( w, watcher );
 
-	/* whatever stop event
+	/* whatever, stop event
 	 */
 	ev_io_stop( loop, &(connector->watcher) );
 
@@ -155,17 +155,12 @@ void on_connector_cb(struct ev_loop *loop, struct ev_io *w, int revents)
 
 		connector->state = NASIO_CONNECT_STATE_DONE;
 		nlist_del( &(env->connector_list), &(connector->list_node) );
+		return;
 	}
 	else if( revents & EV_ERROR )
 	{
-		goto retry;
 	}
-	else{
-		/* never comes here
-		 */
-	}
-
-	return;
+	//else
 
 retry:
 	close( connector->fd );
@@ -336,7 +331,10 @@ void nasio_process_connector(nasio_env_t *env)
 		{
 			connector->fd = socket(AF_INET, SOCK_STREAM, 0);
 			if( connector->fd<0 )
-				break;
+			{
+				connector_set_retry( env, connector );
+				goto next;
+			}
 			nasio_net_set_block( connector->fd, 0 );//set nonblock
 
 			rv = connect( connector->fd, (struct sockaddr *)&in4addr, sizeof(in4addr) );
@@ -350,7 +348,8 @@ void nasio_process_connector(nasio_env_t *env)
 				if( !newconn )
 				{
 					close( connector->fd );
-					break;
+					connector_set_retry( env, connector );
+					goto next;
 				}
 				newconn->connector = connector;
 				
@@ -361,7 +360,7 @@ void nasio_process_connector(nasio_env_t *env)
 				nlist_del( &(env->connector_list), prev );
 				continue;
 			}
-			if( rv<0 && errno==EINPROGRESS )
+			else if( rv<0 && errno==EINPROGRESS )
 			{
 				connector->state = NASIO_CONNECT_STATE_PENDING;
 				ev_io_init( &(connector->watcher), on_connector_cb, connector->fd, EV_READ | EV_WRITE );
@@ -390,6 +389,7 @@ void nasio_process_connector(nasio_env_t *env)
 		 * TODO: connect timeout
 		 */
 
+next:
 		next = next->next;
 	}
 }
@@ -641,31 +641,5 @@ void nasio_conn_close(nasio_conn_t *conn)
 	 */
 	nlist_del( &(env->conn_list), &(conn->list_node) );
 	nlist_insert_tail( &(env->close_conn_list), &(conn->list_node) );
-#if 0
-	nasio_env_t *env = conn->env;
-	ev_io_stop( env->loop, &conn->watcher );
-	nlist_del( &(env->conn_list), &(conn->list_node) );
-	if( conn->rbuf )
-		nbuffer_destroy( conn->rbuf );
-	if( conn->wbuf )
-		nbuffer_destroy( conn->wbuf );
-	close( conn->fd );
-
-	if( conn->handler && conn->handler->on_close )
-		conn->handler->on_close( conn );
-
-	/* connector's connection
-	 */
-	if( conn->connector )
-	{
-		nasio_connector_t *connector = (nasio_connector_t *)conn->connector;
-		connector->retry_cnt = 0;
-		connector->state = NASIO_CONNECT_STATE_WAIT;
-		nlist_insert_tail( &(env->connector_list), &(connector->list_node) );
-	}
-
-	npool_free( env->conn_pool, (char *)conn );
-	DEBUGINFO("now conn size %d\n", env->conn_list.size);
-#endif
 }
 
