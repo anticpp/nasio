@@ -22,33 +22,35 @@ int main(int argc, char* argv[])
 	handler->on_close = echo_on_close;
 	handler->on_message = echo_on_message;
 
-	rv = nasio_bind(env, "*", 12388, handler);
+	rv = nasio_connect(env, "127.0.0.1", 12388, handler);
 	if( rv!=0 )
 	{
-		printf("add listener fail\n");
+		printf("add remote fail\n");
 		return 2;
 	}
-	nasio_loop(env, 0);//loop forever
+	nasio_loop(env, 0);
 
 	return 0;
 }
 void echo_on_connect(void *conn)
 {
-	printf("echo server comes a connection\n");
+	printf("connection established\n");
 
+    char buf[] = "hello";
+    nasio_msg_t req;
+    nasio_msg_init_size( &req, sizeof(buf) );
+    char *data = nasio_msg_data( &req );
+    memcpy(data, buf, sizeof(buf));
+    if( nasio_send_msg(conn, &req)<0 ) {
+        printf("send message error\n");
+        nasio_conn_close(conn);
+    }
 }
 void echo_on_close(void *conn)
 {
-	printf("echo server close a connection\n");
+	printf("connection closed\n");
 }
 void echo_on_message(void *conn, nasio_msg_t *msg)
 {
-    printf("[%u][ %s ]\n", nasio_msg_size(msg), nasio_msg_data(msg));
-
-    char buf[] = "world";
-    nasio_msg_t resp;
-    nasio_msg_init_size( &resp, sizeof(buf) );
-    char *data = nasio_msg_data( &resp );
-    memcpy(data, buf, sizeof(buf));
-    nasio_send_msg(conn, &resp);
+    printf("[%u] [%s]\n", nasio_msg_size(msg), nasio_msg_data(msg));
 }

@@ -14,17 +14,17 @@ LIBS=$(GTEST_DIR)/lib/libgtest.a /usr/local/lib//libev.a
 LIBNASIO=./libs/libnasio.a
 UNIT_TEST=./bin/unit_test
 ECHO_SERVER=./bin/echo_server
-TEST_CONNECT=./bin/test_connect
+ECHO_CLIENT=./bin/echo_client
 
 CFLAGS=-g -MD -Wall -O2 -std=c99 $(INCLUDES)
 CXXFLAGS=-g -MD -Wall -O2 $(INCLUDES)
 
 .PHONY: all test lib
 
-TARGETS=$(LIBNASIO) $(UNIT_TEST) $(ECHO_SERVER) $(TEST_CONNECT)
+TARGETS=$(LIBNASIO) $(UNIT_TEST) $(ECHO_SERVER) $(ECHO_CLIENT)
 
 all:$(TARGETS)
-test:$(UNIT_TEST) $(ECHO_SERVER) $(TEST_CONNECT)
+test:$(UNIT_TEST) $(ECHO_SERVER) $(ECHO_CLIENT)
 lib:$(LIBNASIO)
 
 $(LIBNASIO):$(OBJNASIO)
@@ -36,7 +36,7 @@ $(UNIT_TEST): test/unit_test.o $(OBJNASIO)
 $(ECHO_SERVER): test/echo_server.o $(LIBNASIO)
 	$(CXX) $^ -o $@ $(LIBNASIO) $(LIBS)
 
-$(TEST_CONNECT): test/test_connect.o $(LIBNASIO)
+$(ECHO_CLIENT): test/echo_client.o $(LIBNASIO)
 	$(CXX) $^ -o $@ $(LIBNASIO) $(LIBS)
 
 clean:

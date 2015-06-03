@@ -6,8 +6,8 @@
  * @version 
  * @date 2014-11-24
  */
-#ifndef _NASIO_NPOOL_H_
-#define _NASIO_NPOOL_H_
+#ifndef NASIO_NPOOL_H_
+#define NASIO_NPOOL_H_
 
 #include <sys/types.h>
 

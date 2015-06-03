@@ -1,8 +1,10 @@
-NASIO, idea comes from java.nio, which is Not boost ASIO, means to implement an asynchronous network framework.
-Applications don't have to care about network details, but what you want to send and what you have got.
+NASIO
+<A simple io library like java.nio. 
+<NASIO for Not boost ASIO.
 
-TODO:
-* Force close & Lazy close.
-* Simple memory pool.
-* Multiple worker.
-* Timer.
+####TODO:
+```
+Simple memory pool.
+Multiple worker.
+Timer.
+```

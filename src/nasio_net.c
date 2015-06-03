@@ -21,47 +21,19 @@ int nasio_net_set_reuse(int fd, int val)
 	return 0;
 }
 
-int nasio_net_get_local_addr(int fd, nasio_inaddr_t *addr)
+int nasio_net_get_local_addr(int fd, struct sockaddr_in *addr)
 {
-	int rv = 0;
-	struct sockaddr_in in4addr;
-	socklen_t len = sizeof(in4addr);
-	rv = getsockname(fd, (struct sockaddr *)&in4addr, &len);
-	if( rv<0 )
-		return -1;
-	nasio_net_convert_inaddr( addr, &in4addr );
-	return 0;
+	socklen_t len = sizeof(struct sockaddr_in);
+	return getsockname(fd, (struct sockaddr *)addr, &len);
 }
 
-int nasio_net_get_remote_addr(int fd, nasio_inaddr_t *addr)
+int nasio_net_get_remote_addr(int fd, struct sockaddr_in *addr)
 {
-	int rv = 0;
-	struct sockaddr_in in4addr;
-	socklen_t len = sizeof(in4addr);
-	rv = getpeername(fd, (struct sockaddr *)&in4addr, &len);
-	if( rv<0 )
-		return -1;
-	nasio_net_convert_inaddr( addr, &in4addr );
-	return rv<0?-1:0;
+	socklen_t len = sizeof(struct sockaddr_in);
+	return getpeername(fd, (struct sockaddr *)addr, &len);
 }
 
-int nasio_net_convert_inaddr(nasio_inaddr_t *to, struct sockaddr_in *from)
+const char* nasio_net_get_dot_addr(struct sockaddr_in addr)
 {
-	to->addr = ntohl( from->sin_addr.s_addr );
-	to->port = ntohs( from->sin_port );
-	return 0;
-}
-
-int nasio_net_convert_to_inaddr(struct sockaddr_in *to, nasio_inaddr_t *from)
-{
-	to->sin_addr.s_addr = htonl( from->addr );
-	to->sin_port = htons( from->port );
-	return 0;
-}
-
-const char* nasio_net_get_dot_addr(unsigned long addr)
-{
-	struct in_addr inaddr;
-	inaddr.s_addr = htonl( addr );
-	return inet_ntoa( inaddr );
+	return inet_ntoa( addr.sin_addr );
 }

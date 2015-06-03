@@ -5,20 +5,14 @@
  * @version 
  * @date 2014-11-05
  */
-#ifndef _NASIO_NET_H_
-#define _NASIO_NET_H_
+#ifndef NASIO_NET_H_
+#define NASIO_NET_H_
 
 #include <sys/socket.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-typedef struct
-{
-	unsigned long addr;
-	unsigned short port;
-}nasio_inaddr_t;
 
 /**
  * @brief set socket block
@@ -53,7 +47,7 @@ int nasio_net_set_reuse(int fd, int val);
  * @return 0 succ
  * 	   <0 fail 
  */
-int nasio_net_get_local_addr(int fd, nasio_inaddr_t *addr);
+int nasio_net_get_local_addr(int fd, struct sockaddr_in *addr);
 
 /**
  * @brief get socket remote address
@@ -64,37 +58,17 @@ int nasio_net_get_local_addr(int fd, nasio_inaddr_t *addr);
  * @return 0 succ
  * 	   <0 fail
  */
-int nasio_net_get_remote_addr(int fd, nasio_inaddr_t *addr);
+int nasio_net_get_remote_addr(int fd, struct sockaddr_in *addr);
 
 /**
- * @brief
- *
- * @param to
- * @param from
- *
- * @return 0 succ
- * 	   <0 fail
- */
-int nasio_net_convert_inaddr(nasio_inaddr_t *to, struct sockaddr_in *from);
-
-/**
- * @brief convert from nasio_inaddr_t to struct sockaddr_in
- *
- * @param to
- * @param from
- *
- * @return 
- */
-int nasio_net_convert_to_inaddr(struct sockaddr_in *to, nasio_inaddr_t *from);
-
-/**
- * @brief convert to string ip like "192.168.1.1"
+ * @brief - simply call inet_ntoa
+ *          the string return resides in a static memory area, which is not reentrant.
  *
  * @param addr
  *
  * @return NULL if fail
  */
-const char* nasio_net_get_dot_addr(unsigned long addr);
+const char* nasio_net_get_dot_addr(struct sockaddr_in addr);
 
 #ifdef __cplusplus
 }

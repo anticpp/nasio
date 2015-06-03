@@ -57,8 +57,8 @@
  * @version 
  * @date 2014-11-05
  */
-#ifndef _NASIO_NBUFFER_H_
-#define _NASIO_NBUFFER_H_
+#ifndef NASIO_NBUFFER_H_
+#define NASIO_NBUFFER_H_
 
 #include <stdlib.h>
 

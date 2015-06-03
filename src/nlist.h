@@ -16,8 +16,8 @@
  * @date 2014-11-24
  *
  */
-#ifndef _NASIO_NLIST_H_
-#define _NASIO_NLIST_H_
+#ifndef NASIO_NLIST_H_
+#define NASIO_NLIST_H_
 
 #ifdef __cplusplus
 extern "C" {
