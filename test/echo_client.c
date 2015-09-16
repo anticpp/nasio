@@ -2,11 +2,14 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
 #include "nasio.h"
 
 void echo_on_connect(void *conn);
 void echo_on_close(void *conn);
 void echo_on_message(void *conn, nasio_msg_t *msg);
+
+static void *g_conn = 0;
 
 int main(int argc, char* argv[])
 {
@@ -28,29 +31,45 @@ int main(int argc, char* argv[])
 		printf("add remote fail\n");
 		return 2;
 	}
-	nasio_loop(env, 0);
+
+    int ts = 0;
+    char buf[] = "hello";
+    nasio_msg_t msg;
+    while(1) {
+
+	    nasio_loop(env, NASIO_LOOP_NOWAIT);
+
+        if( g_conn && nasio_env_ts(env)/1000000!=ts ) {
+
+            ts = nasio_env_ts(env)/1000000;
+
+            nasio_msg_init_size( &msg, sizeof(buf) );
+            memcpy( nasio_msg_data( &msg ), buf, sizeof(buf) );
+            nasio_send_msg(g_conn, &msg);
+            nasio_msg_destroy( &msg );
+            printf("[SEND] [%s] [%u]\n", nasio_msg_data(&msg), nasio_msg_size(&msg));
+
+        }
+
+        usleep( 1000*10 );
+    }
 
 	return 0;
 }
 void echo_on_connect(void *conn)
 {
-	printf("connection established\n");
+    struct sockaddr_in addr = nasio_conn_remote_addr(conn);
+	printf("connection conneceted %s:%d\n", nasio_net_get_dot_addr(&addr), ntohs(addr.sin_port));
 
-    char buf[] = "hello";
-    nasio_msg_t req;
-    nasio_msg_init_size( &req, sizeof(buf) );
-    char *data = nasio_msg_data( &req );
-    memcpy(data, buf, sizeof(buf));
-    if( nasio_send_msg(conn, &req)<0 ) {
-        printf("send message error\n");
-        nasio_conn_close(conn);
-    }
+    g_conn = conn;
 }
 void echo_on_close(void *conn)
 {
-	printf("connection closed\n");
+    struct sockaddr_in addr = nasio_conn_remote_addr(conn);
+	printf("connection closed %s:%d\n", nasio_net_get_dot_addr(&addr), ntohs(addr.sin_port));
+    g_conn = 0;
 }
 void echo_on_message(void *conn, nasio_msg_t *msg)
 {
-    printf("[%u] [%s]\n", nasio_msg_size(msg), nasio_msg_data(msg));
+    printf("[RECV] [%s] [%u]\n", nasio_msg_data(msg), nasio_msg_size(msg));
 }

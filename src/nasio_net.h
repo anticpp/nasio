@@ -68,7 +68,7 @@ int nasio_net_get_remote_addr(int fd, struct sockaddr_in *addr);
  *
  * @return NULL if fail
  */
-const char* nasio_net_get_dot_addr(struct sockaddr_in addr);
+const char* nasio_net_get_dot_addr(struct sockaddr_in *addr);
 
 #ifdef __cplusplus
 }

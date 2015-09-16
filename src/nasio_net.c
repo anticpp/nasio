@@ -33,7 +33,7 @@ int nasio_net_get_remote_addr(int fd, struct sockaddr_in *addr)
 	return getpeername(fd, (struct sockaddr *)addr, &len);
 }
 
-const char* nasio_net_get_dot_addr(struct sockaddr_in addr)
+const char* nasio_net_get_dot_addr(struct sockaddr_in *addr)
 {
-	return inet_ntoa( addr.sin_addr );
+	return inet_ntoa( addr->sin_addr );
 }

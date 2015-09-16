@@ -28,27 +28,40 @@ int main(int argc, char* argv[])
 		printf("add listener fail\n");
 		return 2;
 	}
-	nasio_loop(env, 0);//loop forever
+	nasio_loop(env, NASIO_LOOP_FOREVER);//loop forever
 
 	return 0;
 }
 void echo_on_connect(void *conn)
 {
-	printf("echo server comes a connection\n");
-
+    struct sockaddr_in addr = nasio_conn_remote_addr(conn);
+	printf("new connection %s:%d\n", nasio_net_get_dot_addr(&addr), ntohs(addr.sin_port));
 }
 void echo_on_close(void *conn)
 {
-	printf("echo server close a connection\n");
+    struct sockaddr_in addr = nasio_conn_remote_addr(conn);
+	printf("close connection %s:%d\n", nasio_net_get_dot_addr(&addr), ntohs(addr.sin_port));
 }
 void echo_on_message(void *conn, nasio_msg_t *msg)
 {
-    printf("[%u][ %s ]\n", nasio_msg_size(msg), nasio_msg_data(msg));
+    printf("[RECV] [%s][%u]\n", nasio_msg_data(msg), nasio_msg_size(msg));
 
-    char buf[] = "world";
+    time_t now = time(0);
+    struct tm *tt = localtime(&now);
+    char buf[256] = {0};
+    snprintf(buf, sizeof(buf)
+                    , "world %04d%02d%02d %02d:%02d:%02d"
+                    , tt->tm_year+1900
+                    , tt->tm_mon+1
+                    , tt->tm_mday
+                    , tt->tm_hour
+                    , tt->tm_min
+                    , tt->tm_sec);
+
     nasio_msg_t resp;
-    nasio_msg_init_size( &resp, sizeof(buf) );
+    nasio_msg_init_size( &resp, strlen(buf)+1 );
     char *data = nasio_msg_data( &resp );
-    memcpy(data, buf, sizeof(buf));
+    memcpy(data, buf, strlen(buf)+1);
     nasio_send_msg(conn, &resp);
+    printf("[SEND] [%s] [%u]\n", nasio_msg_data(&resp), nasio_msg_size(&resp));
 }

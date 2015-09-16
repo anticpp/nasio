@@ -12,7 +12,7 @@ INCLUDES=-I./src/ -I$(GTEST_DIR)/include
 LIBS=$(GTEST_DIR)/lib/libgtest.a /usr/local/lib//libev.a
 
 LIBNASIO=./libs/libnasio.a
-UNIT_TEST=./bin/unit_test
+UNITTEST=./bin/unit_test
 ECHO_SERVER=./bin/echo_server
 ECHO_CLIENT=./bin/echo_client
 
@@ -21,16 +21,16 @@ CXXFLAGS=-g -MD -Wall -O2 $(INCLUDES)
 
 .PHONY: all test lib
 
-TARGETS=$(LIBNASIO) $(UNIT_TEST) $(ECHO_SERVER) $(ECHO_CLIENT)
+TARGETS=$(LIBNASIO) $(UNITTEST) $(ECHO_SERVER) $(ECHO_CLIENT)
 
 all:$(TARGETS)
-test:$(UNIT_TEST) $(ECHO_SERVER) $(ECHO_CLIENT)
+test:$(UNITTEST) $(ECHO_SERVER) $(ECHO_CLIENT)
 lib:$(LIBNASIO)
 
 $(LIBNASIO):$(OBJNASIO)
 	$(AR) rc $@ $^
 
-$(UNIT_TEST): test/unit_test.o $(OBJNASIO)
+$(UNITTEST): test/unit_test.o $(OBJNASIO)
 	$(CXX) $^ -o $@ $(LIBS)
 
 $(ECHO_SERVER): test/echo_server.o $(LIBNASIO)

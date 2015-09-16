@@ -1,57 +1,57 @@
 /**
  * @file nbuffer.h
  * @brief 
- * 	From JAVA.NIO.ByteBuffer.
+ * 	simple implementation of JAVA.NIO.ByteBuffer.
  *
- * INIT:
+ * @example
+ * 
+ * 	nbuffer_t *nbuf = nbuffer_create( 1024 );
+ * 	nbuffer_clear( nbuf ); //clear buffer
+ *
+ * 	nbuffer_write( nbuf, "hello world", 5 ); //write some data 
+ * 	nbuffer_flip( nbuf ); //flip, then you can read 
+ * 	nbuffer_read( nbuf, tmp, 5 ); //read some data
+ * 	nbuffer_compact( nbuf ); //compact, then you can write again
+ * 	nbuffer_write( nbuf, "world", 5)// continue writting
+ *
+ * CREATE:
  * +-----------------------------------+
  * |           BUFFER                  |
  * +-----------------------------------+
  * |                                   |
  * pos                                 limit
  *                                     capacity
- * (mark=-1)
  *
  * WRITE:
  * +-----------------------------------+
- * |///////|                           |
+ * |////////////|                      |
  * +-----------------------------------+
- *         |                           |
- *         pos                         limit
- *                                     capacity
- * (mark=-1)
+ *              |                      |
+ * 		      pos                  limit
  *
  * FLIP:
  * +-----------------------------------+
- * |///////|                           |
+ * |////////////|                      |
  * +-----------------------------------+
- * |       |                           |
- * pos     limit                       capacity
- * (mark=-1)
+ * |            |                      |
+ * pos          limit                  capacity
+ * (limit=pos, pos=0, mark=-1)
  *                                     
  * READ:
  * +-----------------------------------+
- * |   |/////|                         |
+ * |   |////////|                      |
  * +-----------------------------------+
- *     |     |                         |
- *     pos   limit                     capacity
- * (mark=-1)
+ *     |        |                      |
+ *     pos      limit                  capacity
  *   
- * REWIND:
- * +-----------------------------------+
- * |   |/////|                         |
- * +-----------------------------------+
- *     |     |                         |
- *     mark  pos                       limit
- *                                     capacity
  * COMPACT:
  * +-----------------------------------+
- * |/////| <-- memove                  |
+ * |////////|<--(memove)               |
  * +-----------------------------------+
- *       |                             |
- *       pos                           limit
- *       			       capacity
- * (mark=-1)
+ *          |                          |
+ *          pos                        limit
+ *       	                           capacity
+ * (pos=limit, limit=capacity, mark=-1)
  *
  * @author supergui@live.cn
  * @version 
@@ -61,11 +61,17 @@
 #define NASIO_NBUFFER_H_
 
 #include <stdlib.h>
+#include <sys/types.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+/**
+  * @brief 
+  *     Defination of nbuffer_t. 
+  *     Howerver, you should always do operating throught methods, instead of operating the object directly.
+  */
 typedef struct
 {
 	char *buf;
@@ -74,10 +80,6 @@ typedef struct
 	size_t capacity;
 
 	ssize_t mark;
-	
-	//for statistic
-	int compact_cnt;
-	int realloc_cnt;
 }nbuffer_t;
 
 /**
@@ -90,164 +92,187 @@ typedef struct
 nbuffer_t* nbuffer_create(size_t size);
 
 /**
- * @brief require more buffer.
- * 	  if not enough, try compact first. 
- * 	  still not enough, try recursivly enlarge 2*capacity each time, until fits the require.
- *
- * @param buf
- *
- * @param size - 'size' more bytes require
- *
- * @return - 0 succ
- * 	   - <0 fail
- */
-int nbuffer_require(nbuffer_t **pnbuf, size_t size);
-
-/**
- * @brief copy a reference
- *
- * @param to
- * @param src
- *
- */
-#define nbuffer_slice(to, src)\
-	((to)->buf) = ((src)->buf);\
-	((to)->pos) = ((src)->pos);\
-	((to)->limit) = ((src)->limit);\
-	((to)->mark) = ((src)->mark);\
-	((to)->capacity) = ((src)->capacity);\
-
-/**
- * @brief remain len of buffer
- *
- * @param b
- *
- * @return 
- */
-#define nbuffer_remain(b) ( ((b)->limit)-((b)->pos) )
-
-/**
- * @brief put data to buffer
+ * @brief read from nbuf max 'size' bytes to buf
  *
  * @param nbuf
  * @param buf
- * @param dlen - max len to put
+ * @param size
  *
- * @return - >=0 real bytes put
- * 	     <0  error
+ * @return >=0 the number of bytes actually read
+ *         <0  error
  */
-ssize_t nbuffer_put_buf(nbuffer_t *nbuf, const char *buf, size_t dlen);
-
-/**
- * @brief get data from buffer
- *
- * @param nbuf
- * @param buf
- * @param dlen
- *
- * @return - >=0 real bytes get
- * 	     <0 error
- */
-ssize_t nbuffer_get_buf(nbuffer_t *nbuf, char *buf, size_t dlen);
-
-/**
- * @brief flip before READ
- *
- * @param b
- *
- * @return 
- */
-#define nbuffer_flip(b)\
-do{\
-	(b)->limit = (b)->pos;\
-	if( (b)->mark>=0 )\
-		(b)->pos = (b)->mark;\
-	else\
-		(b)->pos = 0;\
-	(b)->mark = -1;\
-}while(0)\
+ssize_t nbuffer_read(nbuffer_t *nbuf, char *buf, size_t size);
 
 /**
  * @brief 
  *
  * @param nbuf
- */
-#define nbuffer_rewind(b)\
-do{\
-	if( (b)->pos>0 )\
-		(b)->mark = (b)->pos;\
-	(b)->pos = (b)->limit;\
-	(b)->limit = (b)->capacity;\
-}while(0)\
-
-/** 
- * @brief compact before WRITE
- *	  in fact, this operation includes compact & rewind
+ * @param buf
+ * @param size
  *
- * @param nbuf
- *
- * @return remain bytes
+ * @return >=0 the number of bytes actually written
+ *         <0  error
  */
-void nbuffer_compact(nbuffer_t *nbuf);
+ssize_t nbuffer_write(nbuffer_t *nbuf, const char *buf, size_t size);
 
+#if 0
+/**
+ * @brief reserve memory size
+ *
+ * @param pnbuf
+ * @param size
+ *
+ * @return >=0 real bytes write
+ *         <0 fail
+ */
+ssize_t nbuffer_reserve(nbuffer_t **pnbuf, size_t size);
+#endif 
 
 /**
- * @brief set position.
- * 	  pos must be no larger than limit.
- * 	  if mark is defined and larger than new position, discard it.
+ * @brief 
+ *      Digest size bytes of data, which set pos+=size, and return the address.
+ *      pos+size should no larger than current limit.
  *
- * @param b
- * @param pos
+ * @param nbuf
+ * @param bytes
  *
  * @return 
+ *      The number of bytes actually digested.
+ */
+size_t nbuffer_digest( nbuffer_t *nbuf, size_t size );
+
+/**
+ * @brief 
+ *      Get the buffer's capacity.
+ */
+#define nbuffer_get_capacity(b) ( (b)->capacity )
+
+/**
+ * @brief 
+ *      Get the buffer's position.
+ */
+#define nbuffer_get_pos(b) ( (b)->pos )
+
+/**
+ * @brief 
+ *      Sets this buffer's position. 
+ *      If the mark is defined and larger than the new position then it is discarded.
+ *      The new position value; must be non-negative and no larger than the current limit.
  */
 #define nbuffer_set_pos(b, p)\
 do{\
-	if( (p)<=(b)->limit )\
-	{\
-		(b)->pos = p;\
-		if( (b)->mark>p )\
+	if( (p)<=(b)->limit ) {\
+		(b)->pos = (p);\
+		if( (b)->mark>(ssize_t)(p) )\
 			(b)->mark = -1;\
 	}\
 }while(0)\
 
 /**
- * @brief set limit
+ * @brief 
+ *      Get the buffer's limit.
+ */
+#define nbuffer_get_limit(b) ((b)->limit)
+
+/**
+ * @brief 
+ *      Sets this buffer's limit. If the position is larger than the new limit then it is set to the new limit. If the mark is defined and larger than the new limit then it is discarded.
  *
- * @param b
- * @param p
- *
- * @return 
  */
 #define nbuffer_set_limit(b, p)\
 do{\
-	if( (p)>(b)->capacity )\
-		break;\
-	if( (b)->pos>(p) )\
-		(b)->pos = (p);\
-	if( (b)->mark>(p) )\
-		(b)->mark = (p);\
-	(b)->limit = (p);\
+    (b)->limit = (p);\
+    if( (b)->pos>=(p) ) {\
+        (b)->pos=(p);\
+    }\
+    if( (b)->mark>=(ssize_t)(p) ) {\
+        (b)->mark = -1;\
+    }\
 }while(0)\
 
 /**
  * @brief 
+ *      Sets this buffer's mark at its position.
  *
  * @param b
  *
  * @return 
  */
+#define nbuffer_mark(b)\
+do{\
+    (b)->mark = (b)->pos;\
+}while(0)\
+
+/**
+ * @brief 
+ *      Resets this buffer's position to the previously-marked position.
+ *
+ * @param b
+ *
+ * @return 
+ */
+#define nbuffer_reset(b)\
+do{\
+    if( (b)->mark>=0 )\
+        (b)->pos = (b)->mark;\
+}while(0)\
+
+/**
+ * @brief 
+ *      Clears this buffer. 
+ *      The position is set to zero, the limit is set to the capacity, and the mark is discarded.
+ */
 #define nbuffer_clear(b)\
 do{\
+    (b)->pos = 0;\
+    (b)->limit = (b)->capacity;\
+    (b)->mark = -1;\
+}while(0)\
+
+#define nbuffer_get_remaining(b) ( (b)->limit - (b)->pos )
+
+#define nbuffer_has_remaining(b) ( nbuffer_get_remaining((b))>0 )
+
+/**
+ * @brief 
+ *      Flips this buffer. 
+ *      The limit is set to the current position and then the position is set to zero. 
+ *      If the mark is defined then it is discarded.
+ */
+#define nbuffer_flip(b)\
+do{\
+	(b)->limit = (b)->pos;\
 	(b)->pos = 0;\
-	(b)->limit = (b)->capacity;\
 	(b)->mark = -1;\
 }while(0)\
 
 /**
- * @brief destroy buffer
+ * @brief
+ *      Rewinds this buffer. 
+ *      The position is set to zero and the mark is discarded.
+ */
+#define nbuffer_rewind(b)\
+do{\
+    (b)->pos = 0;\
+	(b)->mark = -1;\
+}while(0)\
+
+/** 
+ * @brief 
+ *      Compacts this buffer  (optional operation).
+ *      The bytes between the buffer's current position and its limit, if any, are copied to the beginning of the buffer. That is, the byte at index p = position() is copied to index zero, the byte at index p + 1 is copied to index one, and so forth until the byte at index limit() - 1 is copied to index n = limit() - 1 - p. The buffer's position is then set to n+1 and its limit is set to its capacity. The mark, if defined, is discarded.
  *
- * @param buffer
+ *      The buffer's position is set to the number of bytes copied, rather than to zero, so that an invocation of this method can be followed immediately by an invocation of another relative put method.
+ *
+ * @return 0 - success
+ *         <0 - fail
+ */
+int nbuffer_compact(nbuffer_t *nbuf);
+
+/**
+ * @brief 
+ *      destroy buffer
+ *
  */
 void nbuffer_destroy(nbuffer_t *nbuf);
 

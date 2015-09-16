@@ -27,8 +27,7 @@ typedef struct nasio_msg_s nasio_msg_t;
 typedef enum 
 {
 	NASIO_LOOP_FOREVER = 0x00,
-	NASIO_LOOP_NONBLOCK= 0x01
-
+	NASIO_LOOP_NOWAIT= 0x01
 }nasio_loop_type_e;
 
 struct nasio_conn_event_handler_s 
@@ -56,15 +55,9 @@ struct nasio_conn_event_handler_s
 	void (*on_message)(void *, nasio_msg_t *);
 };
 
-typedef struct 
-{
-    uint32_t version;
-    uint32_t magic;
-    uint32_t length;
-}nasio_msg_header_t;
 struct nasio_msg_s
 {
-    nasio_msg_header_t header;
+    struct { unsigned char _ [12]; } header;
     char *data;
 };
 
@@ -86,6 +79,15 @@ void* nasio_env_create(int capacity);
  * @return 
  */
 int nasio_env_destroy(void *env);
+
+
+/**
+ * @brief 
+ *      Get current microsecond.
+ *
+ * @return 
+ */
+int nasio_env_ts(void *env);
 
 /**
  * @brief Bind tcp address.
@@ -135,6 +137,30 @@ int nasio_loop(void *env, int flag);
  * @param conn
  */
 void nasio_conn_close(void *conn);
+
+/**
+ * @brief 
+ *      Get connection id.
+ */
+uint64_t nasio_conn_get_id(void *conn);
+
+/**
+ * @brief 
+ *      Get connection fd.
+ */
+uint64_t nasio_conn_get_fd(void *conn);
+
+/**
+ * @brief 
+ *      Get local address.
+ */
+struct sockaddr_in nasio_conn_local_addr(void *conn);
+
+/**
+ * @brief 
+ *      Get remote address.
+ */
+struct sockaddr_in nasio_conn_remote_addr(void *conn);
 
 /**
  * @brief Write message.
