@@ -16,8 +16,8 @@ UNITTEST=./bin/unit_test
 ECHO_SERVER=./bin/echo_server
 ECHO_CLIENT=./bin/echo_client
 
-CFLAGS=-g -MD -Wall -O2 -std=c99 $(INCLUDES)
-CXXFLAGS=-g -MD -Wall -O2 $(INCLUDES)
+CFLAGS=-g -DNASIO_DEBUG -MD -Wall -O2 -std=c99 $(INCLUDES)
+CXXFLAGS=-g -DNASIO_DEBUG -MD -Wall -O2 $(INCLUDES)
 
 .PHONY: all test lib
 

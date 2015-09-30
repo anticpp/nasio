@@ -61,6 +61,8 @@ struct nasio_msg_s
     char *data;
 };
 
+typedef void (*log_callback)(int level, const char *fmt, ...);
+
 /**
  * @brief Create nasio environment.
  *

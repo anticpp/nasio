@@ -8,6 +8,7 @@
 #include <sys/socket.h>
 #include <time.h>
 #include <sys/time.h>
+#include <stdarg.h>
 #include "nasio.h"
 #include "nasio_net.h"
 
@@ -35,12 +36,79 @@
 #define error_not_ready() ( errno==EAGAIN || errno==EWOULDBLOCK )
 #define new_conn_id(env) ( (++((env)->conn_id_gen)) % 0x00ffffffffffffff )
 
-#define connector_set_retry(env, connector)\
-do{\
+#define connector_set_retry(env, connector) do{\
 	((connector)->state) = NASIO_CONNECT_STATE_RETRY;\
 	((connector)->retry_cnt)++;\
 	((connector)->last_try) = now_time_sec(env);\
 }while(0)\
+
+/*
+ * logger define begin
+ */
+enum nasio_log_level_e {
+    NASIO_LOG_LEVEL_ALL,
+    NASIO_LOG_LEVEL_TRACE,
+    NASIO_LOG_LEVEL_INFO,
+    NASIO_LOG_LEVEL_DEBUG,
+    NASIO_LOG_LEVEL_WARN,
+    NASIO_LOG_LEVEL_ERROR,
+    NASIO_LOG_LEVEL_FATAL
+};
+
+
+#ifdef NASIO_DEBUG
+#define nasio_env_log(env, l, fmt, ...) do{\
+    if( env->logger.callback && l>=env->logger.level ){\
+        env->logger.callback( l, fmt, __VA_ARGS__ );\
+    }\
+}while(0)
+#else 
+#define nasio_env_log(env, l, fmt, ...)
+#endif
+
+#define nasio_env_log_trace(env, fmt, ...) nasio_env_log(env, NASIO_LOG_LEVEL_TRACE, fmt, __VA_ARGS__)
+#define nasio_env_log_info(env, fmt, ...) nasio_env_log(env, NASIO_LOG_LEVEL_INFO, fmt, __VA_ARGS__)
+#define nasio_env_log_debug(env, fmt, ...) nasio_env_log(env, NASIO_LOG_LEVEL_DEBUG, fmt, __VA_ARGS__)
+#define nasio_env_log_warn(env, fmt, ...) nasio_env_log(env, NASIO_LOG_LEVEL_WARN, fmt, __VA_ARGS__)
+#define nasio_env_log_error(env, fmt, ...) nasio_env_log(env, NASIO_LOG_LEVEL_ERROR, fmt, __VA_ARGS__)
+#define nasio_env_log_fatal(env, fmt, ...) nasio_env_log(env, NASIO_LOG_LEVEL_FATAL, fmt, __VA_ARGS__)
+
+#ifdef NASIO_DEBUG
+static void nasio_default_log_cb(int level, const char *fmt, ...)
+{
+    switch(level) {
+        case NASIO_LOG_LEVEL_TRACE:
+            fprintf(stderr, "[TRACE] ");
+            break;
+        case NASIO_LOG_LEVEL_INFO:
+            fprintf(stderr, "[INFO] ");
+            break;
+        case NASIO_LOG_LEVEL_DEBUG:
+            fprintf(stderr, "[DEBUG] ");
+            break;
+        case NASIO_LOG_LEVEL_WARN:
+            fprintf(stderr, "[WARN] ");
+            break;
+        case NASIO_LOG_LEVEL_ERROR:
+            fprintf(stderr, "[ERROR] ");
+            break;
+        case NASIO_LOG_LEVEL_FATAL:
+            fprintf(stderr, "[FATAL] ");
+            break;
+        default:
+            break;
+    }
+    va_list ap;
+    va_start(ap, fmt);
+    vfprintf(stderr, fmt, ap);
+    va_end(ap);
+
+    fprintf(stderr, "\n");
+}
+#endif
+/*
+ * logger define end
+ */
 
 typedef struct nasio_conn_s nasio_conn_t;
 
@@ -51,6 +119,12 @@ typedef enum
 	NASIO_CONNECT_STATE_DONE = 2,
 	NASIO_CONNECT_STATE_RETRY = 3 
 }nasio_connect_stat_e;
+
+typedef struct
+{
+    int level;
+    log_callback callback;
+}nasio_logger_t;
 
 typedef struct 
 {
@@ -63,6 +137,9 @@ typedef struct
 
 	uint64_t conn_id_gen;
 	uint64_t now_time_us;
+
+    nasio_logger_t logger;
+
 }nasio_env_t;
 
 typedef struct
@@ -128,6 +205,7 @@ static void nasio_process_connector(nasio_env_t *env);
 static void nasio_process_close_list(nasio_env_t *env);
 static ssize_t nasio_msg_frame(nbuffer_t *buf, nasio_msg_header_t *header);
 static ssize_t nasio_msg_encode_header(nbuffer_t *nbuf, const nasio_msg_header_t *header);
+
 
 /* private method
  */
@@ -333,8 +411,7 @@ void nasio_process_connector(nasio_env_t *env)
 			}
 			nasio_net_set_block( connector->fd, 0 );//set nonblock
     
-
-            printf("try connect to %s:%d\n", nasio_net_get_dot_addr(&(connector->addr)), ntohs(connector->addr.sin_port));
+            nasio_env_log_debug( env, "async connect(%d) %s:%d", connector->retry_cnt, nasio_net_get_dot_addr(&(connector->addr)), ntohs(connector->addr.sin_port) );
 			rv = connect( connector->fd, (struct sockaddr *)&(connector->addr), sizeof(struct sockaddr_in) );
 			if( rv==0 ) { //succ
 				nasio_conn_t *newconn = nasio_conn_new(env
@@ -347,6 +424,7 @@ void nasio_process_connector(nasio_env_t *env)
 				}
 				newconn->connector = connector;
 				connector->state = NASIO_CONNECT_STATE_DONE;
+                connector->retry_cnt = 0;
 
 				prev = next;
 				next = next->next;
@@ -359,12 +437,14 @@ void nasio_process_connector(nasio_env_t *env)
 				ev_io_start( env->loop, &(connector->watcher) );
 			}
 			else if( rv<0 ) {
+                nasio_env_log_error( env, "connect %s:%d fail, error %s", nasio_net_get_dot_addr(&(connector->addr)), ntohs(connector->addr.sin_port), strerror(errno));
 				close( connector->fd );
 				connector_set_retry( env, connector );
 			}
 		}
 		else if( connector->state==NASIO_CONNECT_STATE_RETRY 
 				&&  now_time_sec(env)-connector->last_try>=CONNECT_RETRY_INTERVAL ) {
+            nasio_env_log_debug(env, "set retry(%d) connect %s:%d", connector->retry_cnt, nasio_net_get_dot_addr(&(connector->addr)), ntohs(connector->addr.sin_port));
 			connector->state = NASIO_CONNECT_STATE_WAIT;
 		}
 
@@ -466,6 +546,14 @@ void* nasio_env_create(int capacity)
 	nlist_init( &(env->conn_list) );
 	nlist_init( &(env->close_conn_list) );
 	env->conn_id_gen = 0;
+
+#ifdef NASIO_DEBUG
+    env->logger.callback = nasio_default_log_cb;
+    env->logger.level = NASIO_LOG_LEVEL_ALL;
+#else
+    env->logger.callback = 0;
+#endif
+
 
 	return env;
 
