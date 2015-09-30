@@ -30,6 +30,16 @@ typedef enum
 	NASIO_LOOP_NOWAIT= 0x01
 }nasio_loop_type_e;
 
+enum nasio_log_level_e {
+    NASIO_LOG_LEVEL_ALL,
+    NASIO_LOG_LEVEL_TRACE,
+    NASIO_LOG_LEVEL_INFO,
+    NASIO_LOG_LEVEL_DEBUG,
+    NASIO_LOG_LEVEL_WARN,
+    NASIO_LOG_LEVEL_ERROR,
+    NASIO_LOG_LEVEL_FATAL
+};
+
 struct nasio_conn_event_handler_s 
 {
     /**
@@ -134,6 +144,16 @@ int nasio_connect(void *env
 int nasio_loop(void *env, int flag);
 
 /**
+ * @brief 
+ *      Set debug level.
+ *      The default log level is NASIO_LOG_LEVEL_ALL.
+ *      This is meaningful only when NASIO_DEBUG is opened.
+ *
+ * @param level - type of nasio_log_level_e
+ */
+void nasio_set_log_level(void *env, int level);
+
+/**
  * @brief close connection
  *
  * @param conn
@@ -213,6 +233,7 @@ char *nasio_msg_data(nasio_msg_t *msg);
  * @return Size.
  */
 uint32_t nasio_msg_size(nasio_msg_t *msg);
+
 
 #ifdef __cplusplus
 }

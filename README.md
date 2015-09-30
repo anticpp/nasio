@@ -95,7 +95,7 @@ void echo_on_message(void *conn, nasio_msg_t *msg)
     - Improve compact
     - Extend on demands
 * Inner logger
-    - Defalut stderr
+    - Defalut logger [DONE]
     - Support user-defined logger
 
 # Not Sure TODO

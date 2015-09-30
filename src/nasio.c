@@ -15,23 +15,19 @@
 #define PROTOCOL_VERSION 1
 #define PROTOCOL_MAGIC 0x438eaf12
 #define MAX_MESSAGE_SIZE 5*1024*1024
-#define MAX_BACKLOG 10000
-#define ACCEPT_ONCE 5
-
-#define CONNECT_RETRY_INTERVAL 3
 
 #define microsecond(sec) ((sec)*1000000)
-#define now_time_sec(env) (((env)->now_time_us)/1000000)
+#define now_time_sec(env) ((int)(((env)->now_time_us)/1000000))
 #define now_time_usec(env) ((env)->now_time_us)
 
 #ifndef offsetof
 #define offsetof(s, e) (size_t)( &(((s *)0)->e) )
 #endif
 
-#define parent_of(type, ref, name) ( (type *)((char *)(ref)-offsetof(type, name)) )
-#define listener_of(ref, name) parent_of(nasio_listener_t, ref, name)
-#define connection_of(ref, name) parent_of(nasio_conn_t, ref, name)
-#define connector_of(ref, name) parent_of(nasio_connector_t, ref, name)
+#define parent_of(obj, name, type) ( (type *)((char *)(obj)-offsetof(type, name)) )
+#define listener_of(obj, name) parent_of(obj, name, nasio_listener_t)
+#define connection_of(obj, name) parent_of(obj, name, nasio_conn_t)
+#define connector_of(obj, name) parent_of(obj, name, nasio_connector_t)
 
 #define error_not_ready() ( errno==EAGAIN || errno==EWOULDBLOCK )
 #define new_conn_id(env) ( (++((env)->conn_id_gen)) % 0x00ffffffffffffff )
@@ -41,19 +37,6 @@
 	((connector)->retry_cnt)++;\
 	((connector)->last_try) = now_time_sec(env);\
 }while(0)\
-
-/*
- * logger define begin
- */
-enum nasio_log_level_e {
-    NASIO_LOG_LEVEL_ALL,
-    NASIO_LOG_LEVEL_TRACE,
-    NASIO_LOG_LEVEL_INFO,
-    NASIO_LOG_LEVEL_DEBUG,
-    NASIO_LOG_LEVEL_WARN,
-    NASIO_LOG_LEVEL_ERROR,
-    NASIO_LOG_LEVEL_FATAL
-};
 
 
 #ifdef NASIO_DEBUG
@@ -66,12 +49,12 @@ enum nasio_log_level_e {
 #define nasio_env_log(env, l, fmt, ...)
 #endif
 
-#define nasio_env_log_trace(env, fmt, ...) nasio_env_log(env, NASIO_LOG_LEVEL_TRACE, fmt, __VA_ARGS__)
-#define nasio_env_log_info(env, fmt, ...) nasio_env_log(env, NASIO_LOG_LEVEL_INFO, fmt, __VA_ARGS__)
-#define nasio_env_log_debug(env, fmt, ...) nasio_env_log(env, NASIO_LOG_LEVEL_DEBUG, fmt, __VA_ARGS__)
-#define nasio_env_log_warn(env, fmt, ...) nasio_env_log(env, NASIO_LOG_LEVEL_WARN, fmt, __VA_ARGS__)
-#define nasio_env_log_error(env, fmt, ...) nasio_env_log(env, NASIO_LOG_LEVEL_ERROR, fmt, __VA_ARGS__)
-#define nasio_env_log_fatal(env, fmt, ...) nasio_env_log(env, NASIO_LOG_LEVEL_FATAL, fmt, __VA_ARGS__)
+#define nasio_log_trace(env, fmt, ...) nasio_env_log(env, NASIO_LOG_LEVEL_TRACE, fmt, __VA_ARGS__)
+#define nasio_log_info(env, fmt, ...) nasio_env_log(env, NASIO_LOG_LEVEL_INFO, fmt, __VA_ARGS__)
+#define nasio_log_debug(env, fmt, ...) nasio_env_log(env, NASIO_LOG_LEVEL_DEBUG, fmt, __VA_ARGS__)
+#define nasio_log_warn(env, fmt, ...) nasio_env_log(env, NASIO_LOG_LEVEL_WARN, fmt, __VA_ARGS__)
+#define nasio_log_error(env, fmt, ...) nasio_env_log(env, NASIO_LOG_LEVEL_ERROR, fmt, __VA_ARGS__)
+#define nasio_log_fatal(env, fmt, ...) nasio_env_log(env, NASIO_LOG_LEVEL_FATAL, fmt, __VA_ARGS__)
 
 #ifdef NASIO_DEBUG
 static void nasio_default_log_cb(int level, const char *fmt, ...)
@@ -138,6 +121,10 @@ typedef struct
 	uint64_t conn_id_gen;
 	uint64_t now_time_us;
 
+    int backlog;
+    int accept_once;
+    int connect_retry_interval;
+
     nasio_logger_t logger;
 
 }nasio_env_t;
@@ -200,7 +187,7 @@ static void on_listener_cb(struct ev_loop *loop, struct ev_io *w, int revents);
 static void on_fd_readable_cb(struct ev_loop *loop, struct ev_io *w, int revents);
 static void on_fd_writable_cb(struct ev_loop *loop, struct ev_io *w, int revents);
 
-static nasio_conn_t* nasio_conn_new(nasio_env_t *env, int fd, nasio_conn_event_handler_t *handler);
+static nasio_conn_t *nasio_conn_new(nasio_env_t *env, int fd, nasio_conn_event_handler_t *handler);
 static void nasio_process_connector(nasio_env_t *env);
 static void nasio_process_close_list(nasio_env_t *env);
 static ssize_t nasio_msg_frame(nbuffer_t *buf, nasio_msg_header_t *header);
@@ -212,16 +199,17 @@ static ssize_t nasio_msg_encode_header(nbuffer_t *nbuf, const nasio_msg_header_t
 
 void on_listener_cb(struct ev_loop *loop, struct ev_io *w, int revents)
 {
-	int max = ACCEPT_ONCE;
-	int cfd = 0;
-
 	nasio_env_t *env = (nasio_env_t *)w->data;
 	nasio_listener_t *listener = listener_of(w, watcher);
+	int ttl = env->accept_once;
+	int cfd = 0;
+
 	struct sockaddr_in in4addr;
 	socklen_t addrlen;
-	while(max-->0) {
+	while(ttl-->0) {
 
 		cfd = accept( listener->fd, (struct sockaddr *)&in4addr, &addrlen);
+        nasio_log_trace( env, "accept fd %d", cfd );
 		if( cfd<0 && error_not_ready() ) { /* no pending */
 			break;	
 		}
@@ -230,6 +218,7 @@ void on_listener_cb(struct ev_loop *loop, struct ev_io *w, int revents)
         }
         nasio_conn_t *newconn = nasio_conn_new(env, cfd, listener->handler);
         if( !newconn ) {
+            nasio_log_error( env, "create new connection fail, when accept fd", cfd );
             close( cfd );
             break;
         }
@@ -258,8 +247,10 @@ void on_connector_cb(struct ev_loop *loop, struct ev_io *w, int revents)
 		nasio_conn_t *newconn = nasio_conn_new(env
 				, connector->fd
 				, connector->handler);
-		if( !newconn )
-			goto retry;
+		if( !newconn ) {
+            nasio_log_error( env, "create new connection fail, when connecting with fd %d", connector->fd );
+			goto retry; 
+        }
 		newconn->connector = connector;
 
 		connector->state = NASIO_CONNECT_STATE_DONE;
@@ -267,6 +258,7 @@ void on_connector_cb(struct ev_loop *loop, struct ev_io *w, int revents)
 		return;
 	}
 	else if( revents & EV_ERROR ){
+        nasio_log_error( env, "event io error when connecting with fd %d", connector->fd );
         goto retry;
 	}
 
@@ -283,23 +275,33 @@ void on_fd_readable_cb(struct ev_loop *loop, struct ev_io *w, int revents)
     nasio_msg_header_t *header = (nasio_msg_header_t *)(&(msg.header));
 
 	nasio_conn_t *conn = connection_of(w, read_watcher);
-	if( !conn->rbuf ) 
-		conn->rbuf = nbuffer_create( 8*1024 );//8KB
+    nasio_env_t *env = conn->env;
+
 	if( !conn->rbuf ) {
+        nasio_log_trace( env, "create read buffer for fd %d", conn->fd );
+		conn->rbuf = nbuffer_create( 8*1024 );//8KB
+    }
+	if( !conn->rbuf ) {
+        nasio_log_fatal( env, "create read buffer for fd %d fail", conn->fd );
 		nasio_conn_close( conn );
 		return;
 	}
 
     if( nbuffer_get_remaining(conn->rbuf)<hungry ) {
+        nasio_log_fatal( env
+                        , "read buffer not enough remaining. fd %d, remaining %zu, hungry %zu"
+                        , conn->fd, nbuffer_get_remaining(conn->rbuf), hungry);
         nasio_conn_close( conn );
         return ;
     }
 
 	rbytes = read( conn->fd, conn->rbuf->buf+conn->rbuf->pos, hungry );
 	if( rbytes<0 && !error_not_ready() ) {
+        nasio_log_error( env, "read error, fd %d, error %s", conn->fd, strerror(errno) );
 		nasio_conn_close(conn);
 	}
 	else if ( rbytes==0 ) {
+        nasio_log_debug( env, "connection closed by the other side, fd %d", conn->fd );
 		nasio_conn_close(conn);
 	}
 	else if( rbytes>0 ) {
@@ -309,21 +311,31 @@ void on_fd_readable_cb(struct ev_loop *loop, struct ev_io *w, int revents)
 		nbuffer_flip( conn->rbuf );
         ssize_t expect = nasio_msg_frame(conn->rbuf, header);
 		if( expect<0 ) { //error
+            nasio_log_error( env, "message frame fail, fd %d", conn->fd );
 			nasio_conn_close(conn);
 			return;
 		}
 		else if( nbuffer_get_remaining(conn->rbuf)>=(size_t)expect ) {
+            
+            nasio_log_trace( env, "message frame success, fd %d, size %zu", conn->fd, expect );
+
             if( nasio_msg_init_size(&msg, expect-sizeof(nasio_msg_header_t))<0 ) {
+                nasio_log_fatal( env, "init message fail for fd %d", conn->fd );
                 nasio_conn_close(conn);
                 return;
             }
-            memcpy(msg.data, conn->rbuf->buf+conn->rbuf->pos+sizeof(nasio_msg_header_t), header->length);
+
+            nbuffer_digest( conn->rbuf, sizeof(nasio_msg_header_t) );
+            nbuffer_read( conn->rbuf, msg.data, header->length );
+            //memcpy(msg.data, conn->rbuf->buf+conn->rbuf->pos+sizeof(nasio_msg_header_t), header->length);
             if( conn->handler && conn->handler->on_message ) {
+                nasio_log_trace( env, "on_message fd %d", conn->fd );
                 conn->handler->on_message( conn, &msg );
             }
             
             nasio_msg_destroy( &msg );
-            nbuffer_digest( conn->rbuf, expect );
+            nbuffer_digest( conn->rbuf, expect-sizeof(nasio_msg_header_t) );
+
 		}
 		nbuffer_compact( conn->rbuf );
 	}
@@ -343,6 +355,7 @@ void on_fd_writable_cb(struct ev_loop *loop, struct ev_io *w, int revents)
 		wbytes=hungry;
 	realwbytes = write( conn->fd, conn->wbuf->buf+conn->wbuf->pos, wbytes );
 	if( realwbytes<0 && !error_not_ready() ) {
+        nasio_log_error( env, "write fail for fd %d, error %s", conn->fd, strerror(errno) );
 		nasio_conn_close(conn);
 		return;
 	}
@@ -354,19 +367,22 @@ void on_fd_writable_cb(struct ev_loop *loop, struct ev_io *w, int revents)
 
 	//stop write
 	if( remain_data_size<=0 ) {
+        nasio_log_trace( env, "write buffer all flushed, fd %d", conn->fd );
 		ev_io_stop( env->loop, w );
 	}
 }
 
-nasio_conn_t* nasio_conn_new(nasio_env_t *env
+nasio_conn_t *nasio_conn_new(nasio_env_t *env
 		, int fd
 		, nasio_conn_event_handler_t *handler)
 {
 	/* allocate && init 
 	 */
 	nasio_conn_t *conn = (nasio_conn_t *)npool_alloc( env->conn_pool );
-	if( !conn ) 
+	if( !conn ) {
+        nasio_log_fatal( env, "create connection fail, fd %d", fd );
 		return NULL;
+    }
 	
 	conn->env = env;
 	conn->id = new_conn_id(env);
@@ -406,18 +422,20 @@ void nasio_process_connector(nasio_env_t *env)
 		if( connector->state==NASIO_CONNECT_STATE_WAIT ) {
 			connector->fd = socket(AF_INET, SOCK_STREAM, 0);
 			if( connector->fd<0 ) {
+                nasio_log_error( env, "create socket fail, error %s", strerror(errno) );
 				connector_set_retry( env, connector );
 				goto next;
 			}
 			nasio_net_set_block( connector->fd, 0 );//set nonblock
     
-            nasio_env_log_debug( env, "async connect(%d) %s:%d", connector->retry_cnt, nasio_net_get_dot_addr(&(connector->addr)), ntohs(connector->addr.sin_port) );
+            nasio_log_debug( env, "async connect(%d) %s:%d", connector->retry_cnt, nasio_net_get_dot_addr(&(connector->addr)), ntohs(connector->addr.sin_port) );
 			rv = connect( connector->fd, (struct sockaddr *)&(connector->addr), sizeof(struct sockaddr_in) );
 			if( rv==0 ) { //succ
 				nasio_conn_t *newconn = nasio_conn_new(env
 							, connector->fd
 							, connector->handler);
 				if( !newconn ) {
+                    nasio_log_error( env, "create new connection fail, when connecting with fd %d", connector->fd );
 					close( connector->fd );
 					connector_set_retry( env, connector );
 					goto next;
@@ -437,14 +455,14 @@ void nasio_process_connector(nasio_env_t *env)
 				ev_io_start( env->loop, &(connector->watcher) );
 			}
 			else if( rv<0 ) {
-                nasio_env_log_error( env, "connect %s:%d fail, error %s", nasio_net_get_dot_addr(&(connector->addr)), ntohs(connector->addr.sin_port), strerror(errno));
+                nasio_log_error( env, "connect %s:%d fail, error %s", nasio_net_get_dot_addr(&(connector->addr)), ntohs(connector->addr.sin_port), strerror(errno));
 				close( connector->fd );
 				connector_set_retry( env, connector );
 			}
 		}
 		else if( connector->state==NASIO_CONNECT_STATE_RETRY 
-				&&  now_time_sec(env)-connector->last_try>=CONNECT_RETRY_INTERVAL ) {
-            nasio_env_log_debug(env, "set retry(%d) connect %s:%d", connector->retry_cnt, nasio_net_get_dot_addr(&(connector->addr)), ntohs(connector->addr.sin_port));
+				&&  now_time_sec(env)-connector->last_try>=env->connect_retry_interval ) {
+            nasio_log_debug(env, "set retry(%d) connect %s:%d", connector->retry_cnt, nasio_net_get_dot_addr(&(connector->addr)), ntohs(connector->addr.sin_port));
 			connector->state = NASIO_CONNECT_STATE_WAIT;
 		}
 
@@ -466,6 +484,10 @@ void nasio_process_close_list(nasio_env_t *env)
 	while( next )
 	{
 		nasio_conn_t *conn = connection_of( next, list_node );
+        nasio_env_t *env = conn->env;
+
+        nasio_log_trace( env, "close connnection fd %d", conn->fd );
+
 		if( conn->handler && conn->handler->on_close )
 			conn->handler->on_close( conn );
 
@@ -478,6 +500,9 @@ void nasio_process_close_list(nasio_env_t *env)
 		/* reconnect
 		*/
 		if( conn->connector ) {
+
+            nasio_log_trace( env, "reconnect for closed fd %d", conn->fd );
+
 			nasio_connector_t *connector = (nasio_connector_t *)conn->connector;
 			connector->retry_cnt = 0;
 			connector->state = NASIO_CONNECT_STATE_WAIT;
@@ -554,6 +579,9 @@ void* nasio_env_create(int capacity)
     env->logger.callback = 0;
 #endif
 
+    env->backlog = 10000;
+    env->accept_once = 5;
+    env->connect_retry_interval = 3;
 
 	return env;
 
@@ -619,7 +647,7 @@ int nasio_bind(void *env
 		return -1;
 	}
 	
-	rv = listen(listener->fd, MAX_BACKLOG);
+	rv = listen(listener->fd, e->backlog);
 	if( rv<0 ) {
 		close(listener->fd);
 		return -1;
@@ -629,6 +657,8 @@ int nasio_bind(void *env
 	ev_io_start(e->loop, &(listener->watcher));
 
 	nlist_insert_tail( &(e->listener_list), &(listener->list_node) );
+
+    nasio_log_debug( e, "bind address %s:%d", nasio_net_get_dot_addr(&(listener->addr)), ntohs(listener->addr.sin_port) );
 
 	return 0;
 }
@@ -655,6 +685,8 @@ int nasio_connect(void *env
 
 	//lazy connect
 	nlist_insert_tail( &(e->connector_list), &(connector->list_node) );
+
+    nasio_log_debug( e, "connect address %s:%d", nasio_net_get_dot_addr(&(connector->addr)), ntohs(connector->addr.sin_port) );
 	
 	return 0;
 }
@@ -690,10 +722,19 @@ int nasio_loop(void *env, int flag)
 	return 0;
 }
 
+void nasio_set_log_level(void *env, int level)
+{
+    nasio_env_t *e = (nasio_env_t *)env;
+    e->logger.level = level;
+}
+
 void nasio_conn_close(void *conn)
 {
     nasio_conn_t *c = (nasio_conn_t *)conn;
 	nasio_env_t *env = c->env;
+    
+    nasio_log_trace( env, "connection lazy close, fd %d", c->fd );
+
 	ev_io_stop( env->loop, &(c->read_watcher) );
 	ev_io_stop( env->loop, &(c->write_watcher) );
 	
@@ -735,16 +776,21 @@ int nasio_send_msg(void *conn, nasio_msg_t *msg)
 
     nasio_msg_header_t *header = (nasio_msg_header_t *)(&(msg->header));
     size_t needed = sizeof(nasio_msg_header_t) + header->length;
-	if( !c->wbuf )
+	if( !c->wbuf ) {
+        nasio_log_debug( env, "create send buffer for connection fd %d", c->fd );
 		c->wbuf = nbuffer_create( 8*1024 );//8KB
+    }
 
 	if( !c->wbuf ) {
+        nasio_log_fatal( env, "create send buffer for connection fd %d fail", c->fd );
 		return -1;
 	}
 
     if( nbuffer_get_remaining(c->wbuf)<needed ) {
         //TODO
         //make reservation
+        nasio_log_fatal( env, "send buffer has not enough remaining for fd %d, remaining %zu, needed %zu"
+                        , c->fd, nbuffer_get_remaining(c->wbuf), needed );
         return -1;
     }
 
