@@ -4,6 +4,7 @@
 #include <time.h>
 #include <unistd.h>
 #include "nasio.h"
+#include "nasio_net.h"
 
 void echo_on_connect(void *conn);
 void echo_on_close(void *conn);
@@ -59,7 +60,7 @@ int main(int argc, char* argv[])
 void echo_on_connect(void *conn)
 {
     struct sockaddr_in addr = nasio_conn_remote_addr(conn);
-	printf("connection conneceted %s:%d\n", nasio_net_get_dot_addr(&addr), ntohs(addr.sin_port));
+	printf("connection connected %s:%d\n", nasio_net_get_dot_addr(&addr), ntohs(addr.sin_port));
 
     g_conn = conn;
 }

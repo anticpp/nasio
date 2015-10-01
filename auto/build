@@ -1,0 +1,24 @@
+
+NASIO_HOME=`pwd`
+
+if [ $BUILD_LIBEV = "yes" ]
+then
+    echo "============ BUILD libev BEGIN ================"
+    cd $PATH_LIBEV && ./configure && make
+    echo "============ BUILD libev END ================"
+
+    INCLUDES="$INCLUDES -I$PATH_LIBEV"
+    PATH_LIBEV=$PATH_LIBEV/.libs/libev.a
+fi
+
+if [ $BUILD_GTEST = "yes" ]
+then
+    echo "============ BUILD gtest BEGIN ================"
+    cd $PATH_GTEST && ./configure && make
+    echo "============ BUILD gtest END ================"
+    
+    INCLUDES="$INCLUDES -I$PATH_GTEST"
+    PATH_GTEST=$PATH_GTEST/lib/libgtest.a
+fi
+
+cd $NASIO_HOME

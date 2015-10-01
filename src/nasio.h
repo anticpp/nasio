@@ -12,10 +12,6 @@
 #include <arpa/inet.h>
 #include <stdint.h>
 #include <ev.h>
-#include "npool.h"
-#include "nlist.h"
-#include "nbuffer.h"
-#include "nasio_net.h"
 
 #ifdef __cplusplus
 extern "C" {

@@ -1,0 +1,29 @@
+
+if [ "X$PATH_LIBEV" = "X" ]
+then
+    echo "checking libev ..."
+    p=$(find /usr/local -name libev.a|head -n 1)
+    [ "X$p" != "X" ] && PATH_LIBEV=$p
+fi
+if [ "X$PATH_LIBEV" = "X" -o ! -e "$PATH_LIBEV" ]
+then
+    echo "(error) Libev is not found."
+    echo "(error) You can use --with-libev to locate the existing libev path."
+    exit 1
+fi
+echo "using libev $PATH_LIBEV ..."
+
+if [ "X$PATH_GTEST" = "X" ]
+then
+    echo "checking gtest ..."
+    p=$(find /usr/local -name libgtest.a|head -n 1)
+    [ "X$p" != "X" ] && PATH_GTEST=$p
+fi
+if [ "X$PATH_GTEST" = "X" -o ! -f "$PATH_GTEST" ]
+then
+    echo "(warning) Gtest not found, which is required for unittest."
+    echo "(warning) The unittest will not be built."
+    echo "(warning) Or you can use --with-gtest to locate the existing gtest path."
+else
+    echo "using gtest $PATH_GTEST ..."
+fi

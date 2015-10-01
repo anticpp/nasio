@@ -1,0 +1,89 @@
+#!/bin/bash
+
+EXT_FLAGS=""
+if [ ${IF_DEBUG} = "yes" ]
+then
+    EXT_FLAGS="$EXT_FLAGS -DNASIO_DEBUG"
+fi
+
+cat << EOF >> ${MAKEFILE}
+
+SRCNASIO=\$(wildcard src/*.c)
+OBJNASIO=\$(patsubst %.c,%.o,\$(SRCNASIO))
+DEPNASIO=\$(patsubst %c,%d,\$(SRCNASIO))
+
+SRCTEST=\$(wildcard test/*.c)
+OBJTEST=\$(patsubst %.c,%.o,\$(SRCTEST))
+DEPTEST=\$(patsubst %.c,%.d,\$(SRCTEST))
+
+INCLUDES=-I./src ${INCLUDES}
+LIBS=${PATH_LIBEV} ${PATH_GTEST}
+
+LIBNASIO=./libs/libnasio.a
+UNITTEST=./bin/unit_test
+ECHO_SERVER=./bin/echo_server
+ECHO_CLIENT=./bin/echo_client
+
+CFLAGS=-g -Wall -O2 -std=c99 ${EXT_FLAGS} \$(INCLUDES)
+CXXFLAGS=-g -Wall -O2 ${EXT_FLAGS} \$(INCLUDES)
+
+.PHONY: all test lib
+
+EOF
+
+
+if [ X"$PATH_GTEST" = "X" ]
+then
+
+cat << EOF >> ${MAKEFILE}
+
+TARGETS=\$(LIBNASIO) \$(ECHO_SERVER) \$(ECHO_CLIENT)
+
+all:\$(TARGETS)
+test:\$(ECHO_SERVER) \$(ECHO_CLIENT)
+lib:\$(LIBNASIO)
+
+EOF
+
+else
+
+cat << EOF >> ${MAKEFILE}
+
+TARGETS=\$(LIBNASIO) \$(UNITTEST) \$(ECHO_SERVER) \$(ECHO_CLIENT)
+
+all:\$(TARGETS)
+test:\$(UNITTEST) \$(ECHO_SERVER) \$(ECHO_CLIENT)
+lib:\$(LIBNASIO)
+
+EOF
+
+fi
+
+if [ X"${PATH_GTEST}" != "X" ]
+then
+
+cat << EOF >> ${MAKEFILE}
+\$(UNITTEST): test/unit_test.o \$(OBJNASIO)
+	\$(CXX) $^ -o \$@ \$(LIBS)
+EOF
+
+fi
+
+cat << EOF >> ${MAKEFILE}
+
+\$(LIBNASIO):\$(OBJNASIO)
+	\$(AR) rc \$@ \$^
+
+\$(ECHO_SERVER): test/echo_server.o \$(LIBNASIO)
+	\$(CXX) $^ -o \$@ \$(LIBNASIO) \$(LIBS)
+
+\$(ECHO_CLIENT): test/echo_client.o \$(LIBNASIO)
+	\$(CXX) \$^ -o \$@ \$(LIBNASIO) \$(LIBS)
+
+install:
+	cp -rf src/nasio.h ${PREFIX}/include/
+	cp -rf libs/libnasio.a ${PREFIX}/lib/
+
+clean:
+	rm -fv \$(TARGETS) src/*.o src/*.d test/*.o test/*.d
+EOF

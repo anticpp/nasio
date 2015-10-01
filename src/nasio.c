@@ -10,6 +10,9 @@
 #include <sys/time.h>
 #include <stdarg.h>
 #include "nasio.h"
+#include "npool.h"
+#include "nlist.h"
+#include "nbuffer.h"
 #include "nasio_net.h"
 
 #define PROTOCOL_VERSION 1

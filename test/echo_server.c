@@ -3,6 +3,7 @@
 #include <string.h>
 #include <time.h>
 #include "nasio.h"
+#include "nasio_net.h"
 
 void echo_on_connect(void *conn);
 void echo_on_close(void *conn);

@@ -1,4 +1,66 @@
 #!/bin/bash
 
-test ! -d libs && echo "mkdir libs ..." && mkdir libs
-test ! -d bin && echo "mkdir bin ..." && mkdir bin 
+# Copyright (C) supergui@live.cn
+
+HELP=no
+MAKEFILE="Makefile"
+
+PREFIX="/usr/local/"
+INSTALL_HEADER=${PREFIX}/include/
+INSTALL_LIB=${PREFIX}/lib/
+INCLUDES=""
+
+BUILD_LIBEV="no"
+PATH_LIBEV=""
+BUILD_GTEST="no"
+PATH_GTEST=""
+
+IF_DEBUG=no
+
+for option
+do
+    case $option in
+        -*=*) value=`echo "$option" | sed -e 's/[-_a-zA-Z0-9]*=//'` ;;
+           *) value=""
+    esac
+
+    case $option in
+        --help|-h)          HELP=yes                                ;;
+        --prefix=*)         PREFIX=$value                           ;;
+        --with-libev=*)     PATH_LIBEV=$value;BUILD_LIBEV="yes";    ;;
+        --with-gtest=*)     PATH_GTEST=$value;BUILD_GTEST="yes";    ;;
+ 	    --with-debug)       IF_DEBUG=yes                            ;;
+        *) 
+            echo "error: invalid option $option"
+            exit 1
+        ;;
+    esac
+done
+
+if [ $HELP = "yes" ]
+then
+
+cat << END
+
+ --help|-h                  help message
+
+ --prefix=DIR               set installation prefix
+ --with-libev=DIR           set path to libev
+ --with-gtest=DIR           set path to gtest
+ --with-debug                    build debug version
+    
+END
+exit 0
+fi
+
+. auto/build
+. auto/have
+
+echo -ne "" > $MAKEFILE
+
+. auto/make
+
+echo ""
+echo "configure success"
+echo "INSTALL prefix $PREFIX"
+echo "make & make install"
