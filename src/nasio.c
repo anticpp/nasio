@@ -57,36 +57,31 @@
 #define nasio_log_fatal(env, fmt, ...) nasio_env_log(env, NASIO_LOG_LEVEL_FATAL, fmt, __VA_ARGS__)
 
 #ifdef NASIO_DEBUG
-static void nasio_default_log_cb(int level, const char *fmt, ...)
+
+#define NASIO_MAX_LOG_LEN 2048
+
+static const char *nasio_log_level_name[] = {
+        "ALL", "TRACE", "INFO", "DEBUG",
+        "WARN", "ERROR", "FATAL"
+};
+
+static void default_log_cb(int level, const char *fmt, ...)
 {
-    switch(level) {
-        case NASIO_LOG_LEVEL_TRACE:
-            fprintf(stderr, "[TRACE] ");
-            break;
-        case NASIO_LOG_LEVEL_INFO:
-            fprintf(stderr, "[INFO] ");
-            break;
-        case NASIO_LOG_LEVEL_DEBUG:
-            fprintf(stderr, "[DEBUG] ");
-            break;
-        case NASIO_LOG_LEVEL_WARN:
-            fprintf(stderr, "[WARN] ");
-            break;
-        case NASIO_LOG_LEVEL_ERROR:
-            fprintf(stderr, "[ERROR] ");
-            break;
-        case NASIO_LOG_LEVEL_FATAL:
-            fprintf(stderr, "[FATAL] ");
-            break;
-        default:
-            break;
-    }
+    char tmp[NASIO_MAX_LOG_LEN] = {""};
+
     va_list ap;
     va_start(ap, fmt);
-    vfprintf(stderr, fmt, ap);
+    vsnprintf(tmp, sizeof(tmp)-1, fmt, ap);
     va_end(ap);
 
-    fprintf(stderr, "\n");
+    struct timeval tv;
+    struct tm tm;
+    gettimeofday(&tv, 0);
+    localtime_r( (time_t *)&(tv.tv_sec), &tm );
+
+    fprintf(stderr, "[%04d%02d%02d %02d:%02d:%02d.%d] [%s] %s\n"
+                    , 1900+tm.tm_year, tm.tm_mon, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec, tv.tv_usec
+                    , nasio_log_level_name[level], tmp);
 }
 #endif
 /*
@@ -218,10 +213,11 @@ void on_listener_cb(struct ev_loop *loop, struct ev_io *w, int revents)
         }
         nasio_conn_t *newconn = nasio_conn_new(env, cfd, listener->handler);
         if( !newconn ) {
-            nasio_log_error( env, "create new connection fail, when accept fd", cfd );
+            nasio_log_error( env, "create new connection fail, when accept fd %d", cfd );
             close( cfd );
             break;
         }
+        nasio_log_trace( env, "accept new connection success, fd %d, id %zu", cfd, newconn->id );
 
 	}
 }
@@ -254,7 +250,10 @@ void on_connector_cb(struct ev_loop *loop, struct ev_io *w, int revents)
 		newconn->connector = connector;
 
 		connector->state = NASIO_CONNECT_STATE_DONE;
+        connector->retry_cnt = 0;
 		nlist_del( &(env->connector_list), &(connector->list_node) );
+
+        nasio_log_debug( env, "connect succ %s:%d, fd %d, id %zu", nasio_net_get_dot_addr(&(connector->addr)), ntohs(connector->addr.sin_port), connector->fd, newconn->id );
 		return;
 	}
 	else if( revents & EV_ERROR ){
@@ -409,6 +408,7 @@ nasio_conn_t *nasio_conn_new(nasio_env_t *env
 	if( conn->handler && conn->handler->on_connect )
 		conn->handler->on_connect( conn );
 
+    nasio_log_trace( env, "new connection succ, fd %d, id %zu", fd, conn->id );
 	return conn;
 }
 void nasio_process_connector(nasio_env_t *env)
@@ -447,6 +447,8 @@ void nasio_process_connector(nasio_env_t *env)
 				prev = next;
 				next = next->next;
 				nlist_del( &(env->connector_list), prev );
+
+                nasio_log_debug( env, "connect succ immediately %s:%d, fd %d, id %zu", nasio_net_get_dot_addr(&(connector->addr)), ntohs(connector->addr.sin_port), connector->fd, newconn->id );
 				continue;
 			}
 			else if( rv<0 && errno==EINPROGRESS ) {
@@ -573,7 +575,7 @@ void* nasio_env_create(int capacity)
 	env->conn_id_gen = 0;
 
 #ifdef NASIO_DEBUG
-    env->logger.callback = nasio_default_log_cb;
+    env->logger.callback = default_log_cb;
     env->logger.level = NASIO_LOG_LEVEL_ALL;
 #else
     env->logger.callback = 0;

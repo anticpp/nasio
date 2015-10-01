@@ -97,6 +97,8 @@ void echo_on_message(void *conn, nasio_msg_t *msg)
 * Inner logger
     - Defalut logger [DONE]
     - Support user-defined logger
+* Connect timeout
+    - Retry timeout
 
 # Not Sure TODO
 * Multiple worker support.
