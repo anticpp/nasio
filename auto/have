@@ -19,7 +19,7 @@ then
     p=$(find /usr/local -name libgtest.a|head -n 1)
     [ "X$p" != "X" ] && PATH_GTEST=$p
 fi
-if [ "X$PATH_GTEST" = "X" -o ! -f "$PATH_GTEST" ]
+if [ "X$PATH_GTEST" = "X" -o ! -e "$PATH_GTEST" ]
 then
     echo "(warning) Gtest not found, which is required for unittest."
     echo "(warning) The unittest will not be built."

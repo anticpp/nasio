@@ -60,6 +60,9 @@ echo -ne "" > $MAKEFILE
 
 . auto/make
 
+mkdir bin
+mkdir libs
+
 echo ""
 echo "configure success"
 echo "INSTALL prefix $PREFIX"
