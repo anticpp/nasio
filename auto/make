@@ -24,8 +24,8 @@ UNITTEST=./bin/unit_test
 ECHO_SERVER=./bin/echo_server
 ECHO_CLIENT=./bin/echo_client
 
-CFLAGS=-g -Wall -O2 -std=c99 ${EXT_FLAGS} \$(INCLUDES)
-CXXFLAGS=-g -Wall -O2 ${EXT_FLAGS} \$(INCLUDES)
+CFLAGS=-g -Wall ${EXT_FLAGS} \$(INCLUDES)
+CXXFLAGS=-g -Wall ${EXT_FLAGS} \$(INCLUDES)
 
 .PHONY: all test lib
 

@@ -85,12 +85,12 @@ static void default_log_cb(int level, const char *fmt, ...)
     localtime_r( (time_t *)&(tv.tv_sec), &tm );
 #else
     /*
-     * Well, suppose it will fail.
+     * Well, suppose it will never fails.
      */
     tm = *localtime( (time_t *)&(tv.tv_sec) );
 #endif
 
-    fprintf(stderr, "[%04d%02d%02d %02d:%02d:%02d.%d] [%s] %s\n"
+    fprintf(stderr, "[%04d%02d%02d %02d:%02d:%02d.%zu] [%s] %s\n"
                     , 1900+tm.tm_year, tm.tm_mon, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec, tv.tv_usec
                     , nasio_log_level_name[level], tmp);
 }
@@ -386,6 +386,8 @@ nasio_conn_t *nasio_conn_new(nasio_env_t *env
 		, int fd
 		, nasio_conn_event_handler_t *handler)
 {
+    ev_io *watcher = 0;
+
 	/* allocate && init 
 	 */
 	nasio_conn_t *conn = (nasio_conn_t *)npool_alloc( env->conn_pool );
@@ -409,8 +411,14 @@ nasio_conn_t *nasio_conn_new(nasio_env_t *env
 
 	/* init watcher
 	 */
-	ev_io_init( &(conn->read_watcher), on_fd_readable_cb, fd, EV_READ);
-	ev_io_init( &(conn->write_watcher), on_fd_writable_cb, fd, EV_WRITE);
+    watcher = &(conn->read_watcher);
+	ev_io_init( watcher
+                    , on_fd_readable_cb
+                    , fd, EV_READ );
+    watcher = &(conn->write_watcher);
+	ev_io_init( watcher
+                    , on_fd_writable_cb
+                    , fd, EV_WRITE );
 
     /* always watch READ
      */
@@ -425,6 +433,8 @@ nasio_conn_t *nasio_conn_new(nasio_env_t *env
 void nasio_process_connector(nasio_env_t *env)
 {
 	int rv = 0;
+    ev_io *watcher = 0;
+
 	nlist_node_t *next = env->connector_list.head;
 	nlist_node_t *prev = 0;
 	while( next )
@@ -464,7 +474,8 @@ void nasio_process_connector(nasio_env_t *env)
 			}
 			else if( rv<0 && errno==EINPROGRESS ) {
 				connector->state = NASIO_CONNECT_STATE_PENDING;
-				ev_io_init( &(connector->watcher), on_connector_cb, connector->fd, EV_READ | EV_WRITE );
+                watcher = &(connector->watcher);
+				ev_io_init( watcher, on_connector_cb, connector->fd, EV_READ | EV_WRITE );
 				ev_io_start( env->loop, &(connector->watcher) );
 			}
 			else if( rv<0 ) {
@@ -629,6 +640,7 @@ int nasio_bind(void *env
 	, nasio_conn_event_handler_t *handler)
 {
 	int rv = 0;
+    ev_io *watcher = 0;
     nasio_env_t *e = (nasio_env_t *)env;
 	nasio_listener_t *listener = (nasio_listener_t *)malloc( sizeof(nasio_listener_t) );
 	if( !listener )
@@ -666,7 +678,8 @@ int nasio_bind(void *env
 		return -1;
 	}
 	
-	ev_io_init(&listener->watcher, on_listener_cb, listener->fd, EV_READ);
+    watcher = &(listener->watcher);
+	ev_io_init(watcher, on_listener_cb, listener->fd, EV_READ);
 	ev_io_start(e->loop, &(listener->watcher));
 
 	nlist_insert_tail( &(e->listener_list), &(listener->list_node) );
