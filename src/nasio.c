@@ -78,9 +78,17 @@ static void default_log_cb(int level, const char *fmt, ...)
     va_end(ap);
 
     struct timeval tv;
-    struct tm tm;
     gettimeofday(&tv, 0);
+
+    struct tm tm;
+#if _POSIX_C_SOURCE >= 1 || _XOPEN_SOURCE || _BSD_SOURCE || _SVID_SOURCE || _POSIX_SOURCE
     localtime_r( (time_t *)&(tv.tv_sec), &tm );
+#else
+    /*
+     * Well, suppose it will fail.
+     */
+    tm = *localtime( (time_t *)&(tv.tv_sec) );
+#endif
 
     fprintf(stderr, "[%04d%02d%02d %02d:%02d:%02d.%d] [%s] %s\n"
                     , 1900+tm.tm_year, tm.tm_mon, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec, tv.tv_usec
