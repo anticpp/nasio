@@ -4,7 +4,7 @@ NASIO_HOME=`pwd`
 if [ $BUILD_LIBEV = "yes" ]
 then
     echo "============ BUILD libev BEGIN ================"
-    cd $PATH_LIBEV && ./configure && make
+    cd $PATH_LIBEV && ./configure && make clean && make
     echo "============ BUILD libev END ================"
 
     INCLUDES="$INCLUDES -I$PATH_LIBEV"
@@ -14,7 +14,12 @@ fi
 if [ $BUILD_GTEST = "yes" ]
 then
     echo "============ BUILD gtest BEGIN ================"
-    cd $PATH_GTEST && ./configure && make
+    cd $PATH_GTEST && ./configure && make clean && make
+    if [ $? -eq 0 ]
+    then
+        g++ -I./ -pthread -c src/gtest-all.cc
+        ar -rv lib/libgtest.a gtest-all.o
+    fi
     echo "============ BUILD gtest END ================"
     
     INCLUDES="$INCLUDES -I$PATH_GTEST"

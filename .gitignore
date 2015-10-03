@@ -1,5 +1,7 @@
 # Targets
 bin/*
+Makefile
+makefile
 
 # ctags
 tags
