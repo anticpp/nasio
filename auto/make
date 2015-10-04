@@ -17,7 +17,7 @@ OBJTEST=\$(patsubst %.c,%.o,\$(SRCTEST))
 DEPTEST=\$(patsubst %.c,%.d,\$(SRCTEST))
 
 INCLUDES=-I./src ${INCLUDES}
-LIBS=${PATH_LIBEV} ${PATH_GTEST}
+LIBS=${PATH_LIBEV} ${PATH_GTEST} -lpthread -lm
 
 LIBNASIO=./libs/libnasio.a
 UNITTEST=./bin/unit_test
