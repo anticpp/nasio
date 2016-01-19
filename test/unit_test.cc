@@ -14,26 +14,22 @@
  */
 
 /** Test case: nlist **/
-class NListTest : public ::testing::Test
-{
+class NListTest : public ::testing::Test {
 protected:
-	typedef struct 
-	{
+	typedef struct {
 		nlist_node_t node;
 		int id;
-	}TestData;
+	} TestData;
 
 	const static int DATA_LEN = 10;
 protected:
-	NListTest() 
-	{
+	NListTest() {
 		data_arr = NULL;
 		list = list1 = list2 = NULL;
 	}
 	~NListTest() {}
 
-	virtual void SetUp()
-	{
+	virtual void SetUp() {
 		data_arr = (TestData *)malloc( sizeof(TestData)*DATA_LEN );
 		for( int i=0; i<DATA_LEN; i++ )
 			data_arr[i].id = i;
@@ -47,15 +43,12 @@ protected:
 		for( int i=0; i<DATA_LEN-5; i++ )
 			nlist_insert_tail( list2, &(data_arr[i].node) );
 	}
-	virtual void TearDown() 
-	{
-		if( data_arr )
-		{
+	virtual void TearDown()  {
+		if( data_arr ) {
 			free( data_arr );
 			data_arr = NULL;
 		}
-		if( list )
-		{
+		if( list ) {
 			free( list );
 			list = list1 = list2 = NULL;
 		}
@@ -67,11 +60,9 @@ protected:
 	TestData *data_arr;
 
 public:
-	void ITER_AND_ASSERT_NLIST(nlist_t *list, int arr[], int arrlen)
-	{
+	void ITER_AND_ASSERT_NLIST(nlist_t *list, int arr[], int arrlen) {
 		nlist_node_t *node = list->head;
-		for(int i=0; i<arrlen; i++)
-		{
+		for(int i=0; i<arrlen; i++) {
 			TestData *data = (TestData *)node;
 			ASSERT_TRUE( (node && data->id==arr[i]) ) << "[" << i << "] node: " << node << ", data->id: " << data->id << ", arr[i]: " << arr[i];
 			node = node->next;
@@ -83,8 +74,7 @@ public:
 	}
 };
 
-TEST_F(NListTest, NListTestCreate)
-{
+TEST_F(NListTest, NListTestCreate) {
 	/* Test for create is ok.
 	 */
 
@@ -92,8 +82,7 @@ TEST_F(NListTest, NListTestCreate)
 	ASSERT_TRUE( list1->tail==NULL );
 }
 
-TEST_F(NListTest, NListTestInsertTail)
-{
+TEST_F(NListTest, NListTestInsertTail) {
 	/* Test for append nodes to tail.
 	 */
 
@@ -101,8 +90,7 @@ TEST_F(NListTest, NListTestInsertTail)
 	ITER_AND_ASSERT_NLIST( list2, arr, sizeof(arr)/sizeof(int) );
 }
 
-TEST_F(NListTest, NListTestInsertHead)
-{
+TEST_F(NListTest, NListTestInsertHead) {
 	/* Test for append nodes before head.
 	 */
 
@@ -112,8 +100,7 @@ TEST_F(NListTest, NListTestInsertHead)
 	ITER_AND_ASSERT_NLIST( list2, arr, sizeof(arr)/sizeof(int) );
 }
 
-TEST_F(NListTest, NListTestInsertRandomAfter)
-{
+TEST_F(NListTest, NListTestInsertRandomAfter) {
 	/* Test for insert node after a random node.
 	 */
 
@@ -122,8 +109,7 @@ TEST_F(NListTest, NListTestInsertRandomAfter)
 	nlist_insert_after( list2,  &(data_arr[3].node),  &(data_arr[6].node));
 	ITER_AND_ASSERT_NLIST( list2, arr, sizeof(arr)/sizeof(int) );
 }
-TEST_F(NListTest, NListTestInsertRandomBefore)
-{
+TEST_F(NListTest, NListTestInsertRandomBefore) {
 	/* Test for insert node before a random node.
 	 */
 
@@ -132,8 +118,7 @@ TEST_F(NListTest, NListTestInsertRandomBefore)
 	nlist_insert_after( list2,  &(data_arr[3].node),  &(data_arr[6].node));
 	ITER_AND_ASSERT_NLIST( list2, arr, sizeof(arr)/sizeof(int) );
 }
-TEST_F(NListTest, NListTestDeleteHead)
-{
+TEST_F(NListTest, NListTestDeleteHead) {
 	/* Test for delete head node.
 	 */
 
@@ -142,8 +127,7 @@ TEST_F(NListTest, NListTestDeleteHead)
 	nlist_del_head( list2 );
 	ITER_AND_ASSERT_NLIST( list2, arr, sizeof(arr)/sizeof(int) );
 }
-TEST_F(NListTest, NListTestDeleteTail)
-{
+TEST_F(NListTest, NListTestDeleteTail) {
 	/* Test for delete tail node.
 	 */
 
@@ -152,8 +136,7 @@ TEST_F(NListTest, NListTestDeleteTail)
 	nlist_del_tail( list2 );
 	ITER_AND_ASSERT_NLIST( list2, arr, sizeof(arr)/sizeof(int) );
 }
-TEST_F(NListTest, NListTestDeleteAll)
-{
+TEST_F(NListTest, NListTestDeleteAll) {
 	/* Test for delete all nodes.
 	 */
 
@@ -165,11 +148,9 @@ TEST_F(NListTest, NListTestDeleteAll)
 	ASSERT_TRUE( nlist_isempty( list2) );
 }
 /** Test case: npool **/
-class NPoolTest : public ::testing::Test
-{
+class NPoolTest : public ::testing::Test {
 protected:
-	NPoolTest() 
-	{
+	NPoolTest()  {
 		pool = NULL;
 	}
 	~NPoolTest() {}
@@ -177,12 +158,10 @@ protected:
 	const static int ELEMSIZE = 13;
 	const static int POOLSIZE = 10;
 
-	virtual void SetUp() 
-	{
+	virtual void SetUp()  {
 		pool = npool_create(ELEMSIZE, POOLSIZE);
 	}
-	virtual void TearDown() 
-	{
+	virtual void TearDown()  {
 		if( pool )
 			npool_destroy( pool );
 	}
@@ -190,8 +169,7 @@ protected:
 	npool_t *pool;
 };
 
-TEST_F(NPoolTest, NPoolTestCreate)
-{
+TEST_F(NPoolTest, NPoolTestCreate) {
 	/* Test for create is ok.
 	 */
 
@@ -199,8 +177,7 @@ TEST_F(NPoolTest, NPoolTestCreate)
 	ASSERT_EQ( npool_available(pool), int(POOLSIZE) ); 
 }
 
-TEST_F(NPoolTest, NPoolTestOperate)
-{
+TEST_F(NPoolTest, NPoolTestOperate) {
 	/* Test for allocate and free elements. 
 	 */
 
@@ -222,13 +199,11 @@ TEST_F(NPoolTest, NPoolTestOperate)
     npool_free( pool, elem2 );
     ASSERT_EQ( npool_available(pool), avail+2 );
 }
-TEST_F(NPoolTest, NPoolTestAllocAll)
-{
+TEST_F(NPoolTest, NPoolTestAllocAll) {
 	/* Test for allocate all available from pool.
 	 */
 	char *elem;
-	for(int i=0; i<POOLSIZE; i++)
-	{
+	for(int i=0; i<POOLSIZE; i++) {
 		elem = npool_alloc( pool );
 		ASSERT_TRUE( elem!=NULL );
 	}
@@ -240,21 +215,17 @@ TEST_F(NPoolTest, NPoolTestAllocAll)
 }
 
 /** Test case: nbuffer **/
-class NBufferTest : public ::testing::Test
-{
+class NBufferTest : public ::testing::Test {
 protected:
-	NBufferTest() 
-	{ 
+	NBufferTest() { 
 		nbuf = NULL; 
 	}
-	~NBufferTest() 
-	{
+	~NBufferTest() {
 	}
 
     #define NBUFSIZE 100 
 	
-	virtual void SetUp()
-	{
+	virtual void SetUp() {
 		nbuf = nbuffer_create( NBUFSIZE );
 	    ASSERT_TRUE( nbuf!=NULL );
 
@@ -264,8 +235,7 @@ protected:
 	    ASSERT_EQ( nbuffer_get_remaining(nbuf), NBUFSIZE );
         ASSERT_TRUE( nbuffer_has_remaining(nbuf) );
 	}
-	virtual void TearDown()
-	{
+	virtual void TearDown() {
 		if(nbuf) {
 			nbuffer_destroy( nbuf );
 			nbuf = NULL;
@@ -304,16 +274,14 @@ TEST_F(NBufferTest, NBufferTestRequire)
 	ASSERT_EQ( nbuf1->capacity, int(100<<1) );
 	ASSERT_EQ( nbuffer_get_remaining(nbuf1), int((100<<1) - 70) );
 }*/
-TEST_F(NBufferTest, NBufferTestWrite)
-{
+TEST_F(NBufferTest, NBufferTestWrite) {
 	ssize_t wbytes = nbuffer_write( nbuf, "HELLO WORLD", 11 );
 	ASSERT_EQ( wbytes, 11 );
 	ASSERT_EQ( nbuffer_get_pos(nbuf), wbytes );
 	ASSERT_EQ( nbuffer_get_remaining(nbuf), nbuf->capacity-11 );
 	ASSERT_TRUE( nbuffer_has_remaining(nbuf) );
 }
-TEST_F(NBufferTest, NBufferTestWriteOverflow)
-{
+TEST_F(NBufferTest, NBufferTestWriteOverflow) {
     size_t total = nbuffer_get_remaining( nbuf ) + 10;//a little more
     size_t remaining = nbuffer_get_remaining( nbuf );
     size_t wbytes = 0;
@@ -326,8 +294,7 @@ TEST_F(NBufferTest, NBufferTestWriteOverflow)
     ASSERT_EQ( nbuffer_get_remaining(nbuf), 0 );
     ASSERT_FALSE( nbuffer_has_remaining(nbuf) );
 }
-TEST_F(NBufferTest, NBufferTestWriteFlipRead)
-{
+TEST_F(NBufferTest, NBufferTestWriteFlipRead) {
     size_t rbytes = 0;
     char tmp[128] = {0};
 
@@ -372,8 +339,7 @@ TEST_F(NBufferTest, NBufferTestWriteFlipRead)
     tmp[rbytes] = '\0';
 	ASSERT_EQ( strcmp(tmp, "HELLO WORLD"), 0 );
 }
-TEST_F(NBufferTest, NBufferTestCompact)
-{
+TEST_F(NBufferTest, NBufferTestCompact) {
     char tmp[128] = {0};
 
 	ASSERT_EQ( nbuffer_write( nbuf, "HELLO WORLD", 11 ), 11 );
@@ -387,8 +353,7 @@ TEST_F(NBufferTest, NBufferTestCompact)
 	nbuffer_compact( nbuf );
 	ASSERT_EQ( nbuffer_get_remaining(nbuf), nbuffer_get_capacity(nbuf)-remaining );
 }
-TEST_F(NBufferTest, NBufferTestSetPosLimit)
-{
+TEST_F(NBufferTest, NBufferTestSetPosLimit) {
     char tmp[128] = {0};
     size_t bytes = 0;
 
@@ -413,8 +378,7 @@ TEST_F(NBufferTest, NBufferTestSetPosLimit)
     ASSERT_EQ( strcmp(tmp, " SUPERGUI"), 0 );
 }
 
-TEST_F(NBufferTest, NBufferTestMark)
-{
+TEST_F(NBufferTest, NBufferTestMark) {
     char tmp[128] = {0};
     size_t bytes = 0;
 
@@ -431,8 +395,7 @@ TEST_F(NBufferTest, NBufferTestMark)
     tmp[bytes] = '\0';
     ASSERT_EQ( strcmp(tmp, "HELLO SUPERGUI"), 0 );
 }
-TEST_F(NBufferTest, NBufferTestDigest)
-{
+TEST_F(NBufferTest, NBufferTestDigest) {
     char tmp[128] = {0};
     size_t bytes = 0;
 
@@ -447,8 +410,7 @@ TEST_F(NBufferTest, NBufferTestDigest)
     ASSERT_EQ( strcmp(tmp, " WORLD"), 0 );
 }
 
-int main(int argc, char* argv[])
-{
+int main(int argc, char* argv[]) {
 	::testing::InitGoogleTest(&argc, argv);
 	return RUN_ALL_TESTS();
 }

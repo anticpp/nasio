@@ -8,8 +8,7 @@
 
 //static int nbuffer_hungry(nbuffer_t **pnbuf, size_t size);
 
-nbuffer_t* nbuffer_create(size_t size)
-{
+nbuffer_t* nbuffer_create(size_t size) {
     nbuffer_t *nbuf = (nbuffer_t *)malloc(sizeof(nbuffer_t) + size);
     if( !nbuf )
         return NULL;
@@ -23,8 +22,7 @@ nbuffer_t* nbuffer_create(size_t size)
     return nbuf;
 }
 
-ssize_t nbuffer_read(nbuffer_t *nbuf, char *buf, size_t size)
-{
+ssize_t nbuffer_read(nbuffer_t *nbuf, char *buf, size_t size) {
     ssize_t rbytes = MIN((ssize_t)(nbuf->limit-nbuf->pos), (ssize_t)size);
     if( rbytes<=0 )
         return 0;
@@ -35,8 +33,7 @@ ssize_t nbuffer_read(nbuffer_t *nbuf, char *buf, size_t size)
     return rbytes;
 }
 
-ssize_t nbuffer_write(nbuffer_t *nbuf, const char *buf, size_t size)
-{
+ssize_t nbuffer_write(nbuffer_t *nbuf, const char *buf, size_t size) {
     ssize_t wbytes = MIN((ssize_t)(nbuf->limit-nbuf->pos), (ssize_t)size);
     if( wbytes<=0 )
         return 0;
@@ -47,8 +44,7 @@ ssize_t nbuffer_write(nbuffer_t *nbuf, const char *buf, size_t size)
     return wbytes;
 }
 
-size_t nbuffer_digest( nbuffer_t *nbuf, size_t size )
-{
+size_t nbuffer_digest( nbuffer_t *nbuf, size_t size ) {
     if( nbuf->pos+size>nbuf->limit )
         return 0;
 
@@ -57,8 +53,7 @@ size_t nbuffer_digest( nbuffer_t *nbuf, size_t size )
     return size;
 }
 
-int nbuffer_compact(nbuffer_t *nbuf)
-{
+int nbuffer_compact(nbuffer_t *nbuf) {
     ssize_t data_size = nbuf->limit - nbuf->pos;
 
     /* compact if pos larger than 0, and there are remaining data.
@@ -135,8 +130,7 @@ ssize_t nbuffer_reserve(nbuffer_t **pnbuf, size_t size)
     return 0;
 }
 #endif
-void nbuffer_destroy(nbuffer_t *nbuf)
-{
+void nbuffer_destroy(nbuffer_t *nbuf) {
     free( nbuf );
 }
 

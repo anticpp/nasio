@@ -1,8 +1,7 @@
 #include <stdlib.h>
 #include "nlist.h"
 
-void nlist_insert_after(nlist_t *l, nlist_node_t *p, nlist_node_t *n)
-{
+void nlist_insert_after(nlist_t *l, nlist_node_t *p, nlist_node_t *n) {
 	l->size++;
 
 	n->next = n->prev = NULL;
@@ -23,8 +22,7 @@ void nlist_insert_after(nlist_t *l, nlist_node_t *p, nlist_node_t *n)
 	return;
 }
 
-void nlist_insert_before(nlist_t *l, nlist_node_t *p, nlist_node_t *n)
-{
+void nlist_insert_before(nlist_t *l, nlist_node_t *p, nlist_node_t *n) {
 	l->size++;
 
 	n->next = n->prev = NULL;
@@ -45,8 +43,7 @@ void nlist_insert_before(nlist_t *l, nlist_node_t *p, nlist_node_t *n)
 	return;
 }
 
-void nlist_del(nlist_t *l, nlist_node_t *n)
-{
+void nlist_del(nlist_t *l, nlist_node_t *n) {
 	l->size--;
 
 	if( l->tail==n )

@@ -20,8 +20,7 @@ extern "C" {
 typedef struct nasio_conn_event_handler_s nasio_conn_event_handler_t;
 typedef struct nasio_msg_s nasio_msg_t;
 
-typedef enum 
-{
+typedef enum  {
 	NASIO_LOOP_FOREVER = 0x00,
 	NASIO_LOOP_NOWAIT= 0x01
 }nasio_loop_type_e;
@@ -36,8 +35,7 @@ enum nasio_log_level_e {
     NASIO_LOG_LEVEL_FATAL
 };
 
-struct nasio_conn_event_handler_s 
-{
+struct nasio_conn_event_handler_s  {
     /**
      * @brief On connection established.
      *
@@ -61,8 +59,7 @@ struct nasio_conn_event_handler_s
 	void (*on_message)(void *, nasio_msg_t *);
 };
 
-struct nasio_msg_s
-{
+struct nasio_msg_s {
     struct { unsigned char _ [12]; } header;
     char *data;
 };

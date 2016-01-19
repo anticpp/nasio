@@ -9,12 +9,10 @@ void echo_on_connect(void *conn);
 void echo_on_close(void *conn);
 void echo_on_message(void *conn, nasio_msg_t *msg);
 
-int main(int argc, char* argv[])
-{
+int main(int argc, char* argv[]) {
 	int rv = 0;
 	void *env = nasio_env_create( 1000 );
-	if( !env )
-	{
+	if( !env ) {
 		printf("nasio env create\n");
 		return 1;
 	}
@@ -24,8 +22,7 @@ int main(int argc, char* argv[])
 	handler->on_message = echo_on_message;
 
 	rv = nasio_bind(env, "*", 12388, handler);
-	if( rv!=0 )
-	{
+	if( rv!=0 ) {
 		printf("add listener fail\n");
 		return 2;
 	}
@@ -33,18 +30,15 @@ int main(int argc, char* argv[])
 
 	return 0;
 }
-void echo_on_connect(void *conn)
-{
+void echo_on_connect(void *conn) {
     struct sockaddr_in addr = nasio_conn_remote_addr(conn);
 	printf("new connection %s:%d\n", nasio_net_get_dot_addr(&addr), ntohs(addr.sin_port));
 }
-void echo_on_close(void *conn)
-{
+void echo_on_close(void *conn) {
     struct sockaddr_in addr = nasio_conn_remote_addr(conn);
 	printf("close connection %s:%d\n", nasio_net_get_dot_addr(&addr), ntohs(addr.sin_port));
 }
-void echo_on_message(void *conn, nasio_msg_t *msg)
-{
+void echo_on_message(void *conn, nasio_msg_t *msg) {
     printf("[RECV] [%s][%u]\n", nasio_msg_data(msg), nasio_msg_size(msg));
 
     time_t now = time(0);

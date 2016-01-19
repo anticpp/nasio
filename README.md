@@ -85,6 +85,7 @@ void echo_on_message(void *conn, nasio_msg_t *msg)
 ```
 
 # TODO
+* Async connect timeout and retry
 * Set options
     - Accept once
     - Connect retry interval

@@ -25,14 +25,12 @@ extern "C" {
 
 typedef struct nlist_node_s nlist_node_t;
 
-struct nlist_node_s
-{
+struct nlist_node_s {
 	nlist_node_t *prev;
 	nlist_node_t *next;
 };
 
-typedef struct 
-{
+typedef struct {
 	nlist_node_t *head;
 	nlist_node_t *tail;
 	int size;
