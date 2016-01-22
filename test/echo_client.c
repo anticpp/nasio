@@ -31,7 +31,7 @@ int main(int argc, char* argv[]) {
 	}
 
     int ts = 0;
-    char buf[] = "hello";
+    const char buf[] = "hello";
     nasio_msg_t msg;
     while(1) {
 
@@ -41,11 +41,12 @@ int main(int argc, char* argv[]) {
 
             ts = nasio_env_ts(env)/1000000;
 
-            nasio_msg_init_size( &msg, sizeof(buf) );
-            memcpy( nasio_msg_data( &msg ), buf, sizeof(buf) );
+            nasio_msg_init_size(&msg, sizeof(buf));
+            memcpy(nasio_msg_data(&msg), buf, sizeof(buf));
             nasio_send_msg(g_conn, &msg);
-            nasio_msg_destroy( &msg );
-            printf("[SEND] [%s] [%u]\n", nasio_msg_data(&msg), nasio_msg_size(&msg));
+            printf("[SEND] [%s] [%zu]\n", (char *)nasio_msg_data(&msg), nasio_msg_size(&msg));
+
+            nasio_msg_destroy(&msg);
 
         }
 
@@ -66,5 +67,5 @@ void echo_on_close(void *conn) {
     g_conn = 0;
 }
 void echo_on_message(void *conn, nasio_msg_t *msg) {
-    printf("[RECV] [%s] [%u]\n", nasio_msg_data(msg), nasio_msg_size(msg));
+    printf("[RECV] [%s] [%zu]\n", nasio_msg_data(msg), nasio_msg_size(msg));
 }

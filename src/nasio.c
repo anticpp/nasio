@@ -89,7 +89,7 @@ static void default_log_cb(int level, const char *fmt, ...) {
     tm = *localtime( (time_t *)&(tv.tv_sec) );
 #endif
 
-    fprintf(stderr, "[%04d%02d%02d %02d:%02d:%02d.%zu] [%s] %s\n"
+    fprintf(stderr, "[%04d%02d%02d %02d:%02d:%02d.%d] [%s] %s\n"
                     , 1900+tm.tm_year, tm.tm_mon, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec, tv.tv_usec
                     , nasio_log_level_name[level], tmp);
 }
@@ -180,6 +180,12 @@ typedef struct {
     uint32_t version;
     uint32_t length;
 } nasio_msg_header_t;
+
+typedef struct {
+    void *data;
+    size_t size;
+    unsigned char unused[32 - sizeof(void *) - sizeof(size_t)];
+} nasio_msg_inner_t;
 
 static void on_listener_cb(struct ev_loop *loop, struct ev_io *w, int revents);
 static void on_fd_readable_cb(struct ev_loop *loop, struct ev_io *w, int revents);
@@ -273,7 +279,8 @@ void on_fd_readable_cb(struct ev_loop *loop, struct ev_io *w, int revents) {
 	size_t hungry = 4*1024;
 	ssize_t rbytes = 0;
     nasio_msg_t msg;
-    nasio_msg_header_t *header = (nasio_msg_header_t *)(&(msg.header));
+    nasio_msg_inner_t *imsg = (nasio_msg_inner_t *)(&msg);
+    nasio_msg_header_t header;
 
 	nasio_conn_t *conn = connection_of(w, read_watcher);
     nasio_env_t *env = conn->env;
@@ -310,7 +317,7 @@ void on_fd_readable_cb(struct ev_loop *loop, struct ev_io *w, int revents) {
         nbuffer_digest( conn->rbuf, rbytes );
 
 		nbuffer_flip( conn->rbuf );
-        ssize_t expect = nasio_msg_frame(conn->rbuf, header);
+        ssize_t expect = nasio_msg_frame(conn->rbuf, &header);
 		if( expect<0 ) { //error
             nasio_log_error( env, "message frame fail, fd %d", conn->fd );
 			nasio_conn_close(conn);
@@ -319,6 +326,7 @@ void on_fd_readable_cb(struct ev_loop *loop, struct ev_io *w, int revents) {
 		else if( nbuffer_get_remaining(conn->rbuf)>=(size_t)expect ) {
             
             nasio_log_trace( env, "message frame success, fd %d, size %zu", conn->fd, expect );
+            nbuffer_digest( conn->rbuf, sizeof(nasio_msg_header_t) );//digest header
 
             if( nasio_msg_init_size(&msg, expect-sizeof(nasio_msg_header_t))<0 ) {
                 nasio_log_fatal( env, "init message fail for fd %d", conn->fd );
@@ -326,20 +334,16 @@ void on_fd_readable_cb(struct ev_loop *loop, struct ev_io *w, int revents) {
                 return;
             }
 
-            nbuffer_digest( conn->rbuf, sizeof(nasio_msg_header_t) );
-            nbuffer_read( conn->rbuf, msg.data, header->length );
-            //memcpy(msg.data, conn->rbuf->buf+conn->rbuf->pos+sizeof(nasio_msg_header_t), header->length);
+            nbuffer_read( conn->rbuf, imsg->data, header.length );
             if( conn->handler && conn->handler->on_message ) {
                 nasio_log_trace( env, "on_message fd %d", conn->fd );
                 conn->handler->on_message( conn, &msg );
             }
             
             nasio_msg_destroy( &msg );
-            nbuffer_digest( conn->rbuf, expect-sizeof(nasio_msg_header_t) );
-
 		}
 		nbuffer_compact( conn->rbuf );
-	}
+	}//else if(rbytes>0)
 }
 
 void on_fd_writable_cb(struct ev_loop *loop, struct ev_io *w, int revents) {
@@ -783,8 +787,12 @@ int nasio_send_msg(void *conn, nasio_msg_t *msg) {
     ev_io *watcher = &(c->write_watcher);
     nasio_env_t *env = c->env;
 
-    nasio_msg_header_t *header = (nasio_msg_header_t *)(&(msg->header));
-    size_t needed = sizeof(nasio_msg_header_t) + header->length;
+    nasio_msg_inner_t *imsg = (nasio_msg_inner_t *)msg;
+    nasio_msg_header_t header;
+    header.version = PROTOCOL_VERSION;
+    header.magic = PROTOCOL_MAGIC;
+    header.length = imsg->size;
+    size_t needed = sizeof(nasio_msg_header_t) + header.length;
 	if( !c->wbuf ) {
         nasio_log_debug( env, "create send buffer for connection fd %d", c->fd );
 		c->wbuf = nbuffer_create( 8*1024 );//8KB
@@ -803,8 +811,8 @@ int nasio_send_msg(void *conn, nasio_msg_t *msg) {
         return -1;
     }
 
-    nasio_msg_encode_header( c->wbuf, header );//write header
-	nbuffer_write( c->wbuf, msg->data, header->length );//write body
+    nasio_msg_encode_header( c->wbuf, &header );//write header
+	nbuffer_write( c->wbuf, imsg->data, imsg->size );//write body
 
 	if( !ev_is_active(watcher) ) {
 	    ev_io_start( env->loop, watcher );
@@ -813,26 +821,27 @@ int nasio_send_msg(void *conn, nasio_msg_t *msg) {
 	return 0;
 }
 int nasio_msg_init_size(nasio_msg_t *msg, uint32_t size) {
-    nasio_msg_header_t *header = (nasio_msg_header_t *)(&(msg->header));
-    header->magic = PROTOCOL_MAGIC;
-    header->version = PROTOCOL_VERSION;
-    header->length = size;
+    nasio_msg_inner_t *imsg = (nasio_msg_inner_t *)msg;
+    imsg->data = malloc( size );
+    imsg->size = size;
 
-    msg->data = (char *)malloc( size );
-    if( !msg->data )
+    if( !imsg->data )
         return -1;
 
     return 0;
 }
 int nasio_msg_destroy(nasio_msg_t *msg) {
-    if(msg->data)
-        free(msg->data);
+    nasio_msg_inner_t *imsg = (nasio_msg_inner_t *)msg;
+    if( imsg->data ) {
+        free(imsg->data);
+        imsg->data = 0;
+        imsg->size = 0;
+    }
     return 0;
 }
-char *nasio_msg_data(nasio_msg_t *msg) {
-    return msg->data;
+void *nasio_msg_data(nasio_msg_t *msg) {
+    return ((nasio_msg_inner_t *)msg)->data;
 }
-uint32_t nasio_msg_size(nasio_msg_t *msg) {
-    nasio_msg_header_t *header = (nasio_msg_header_t *)(&(msg->header));
-    return header->length;
+size_t nasio_msg_size(nasio_msg_t *msg) {
+    return ((nasio_msg_inner_t *)msg)->size;
 }

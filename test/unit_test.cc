@@ -1,11 +1,12 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <assert.h>
+#include <string.h>
 #include <gtest/gtest.h>
 #include "nlist.h"
 #include "npool.h"
 #include "nbuffer.h"
+#include "nasio.h"
 /*
  * Unit test with gtest.
  *
@@ -408,6 +409,19 @@ TEST_F(NBufferTest, NBufferTestDigest) {
     ASSERT_EQ( bytes, 6 );
     tmp[bytes] = '\0';
     ASSERT_EQ( strcmp(tmp, " WORLD"), 0 );
+}
+
+/** Test case: nasio_msg_t **/
+TEST(NasioMsgTest, NasioMsgTestInit) {
+    char *data;
+    const char str[] = "hello";
+    nasio_msg_t msg;
+    nasio_msg_init_size( &msg, sizeof(str) );
+    data = (char *)nasio_msg_data(&msg);
+    memcpy( data, str, sizeof(str) );
+
+    ASSERT_EQ( nasio_msg_size(&msg), sizeof(str) ) << "msg size " << nasio_msg_size(&msg) << "!=" << sizeof(str);
+    ASSERT_EQ( strcmp(data, str), 0 ) << "msg data '" << data << "'!=" << "'" << str << "'";
 }
 
 int main(int argc, char* argv[]) {

@@ -59,9 +59,12 @@ struct nasio_conn_event_handler_s  {
 	void (*on_message)(void *, nasio_msg_t *);
 };
 
+/**
+ * @brief Always use nasio_msg_xxx functions to operate nasio_msg_s
+ *        , unless you know what you are doing.
+ */
 struct nasio_msg_s {
-    struct { unsigned char _ [12]; } header;
-    char *data;
+    unsigned char _ [32];
 };
 
 typedef void (*log_callback)(int level, const char *fmt, ...);
@@ -216,7 +219,7 @@ int nasio_msg_destroy(nasio_msg_t *msg);
  *
  * @return Data.
  */
-char *nasio_msg_data(nasio_msg_t *msg);
+void *nasio_msg_data(nasio_msg_t *msg);
 
 /**
  * @brief Get message data size.
@@ -225,7 +228,7 @@ char *nasio_msg_data(nasio_msg_t *msg);
  *
  * @return Size.
  */
-uint32_t nasio_msg_size(nasio_msg_t *msg);
+size_t nasio_msg_size(nasio_msg_t *msg);
 
 
 #ifdef __cplusplus
