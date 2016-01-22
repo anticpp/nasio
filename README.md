@@ -1,9 +1,10 @@
 NASIO
 ======================================
->A lightweight event-driven network library, which supports atomic message.
->NASIO uses libev to handle io event, i prefer [libev][1] rather than [libevent][2], because [libev][1] is much more clean than [libevent][2] now.
->
 >NASIO which is Not [Boost ASIO][3], just for fun, aha.
+> 
+>NASIO is a lightweight event-driven network library, which supports atomic message.
+>NASIO uses [libev][1] to handle io event rather than [libevent][2].
+>
 
 [1]: http://software.schmorp.de/pkg/libev.html
 [2]: http://libevent.org/
@@ -15,8 +16,7 @@ void echo_on_connect(void *conn);
 void echo_on_close(void *conn);
 void echo_on_message(void *conn, nasio_msg_t *msg);
 
-int main(int argc, char* argv[])
-{
+int main(int argc, char* argv[]) {
     void *env = nasio_env_create( 1000 );
     nasio_conn_event_handler_t *handler = (nasio_conn_event_handler_t *)malloc( sizeof(nasio_conn_event_handler_t) ); 
 
@@ -30,16 +30,13 @@ int main(int argc, char* argv[])
     return 0;
 }
 
-void echo_on_connect(void *conn)
-{
+void echo_on_connect(void *conn) {
 	printf("on connect\n");
 }
-void echo_on_close(void *conn)
-{
+void echo_on_close(void *conn) {
 	printf("on close\n");
 }
-void echo_on_message(void *conn, nasio_msg_t *msg)
-{
+void echo_on_message(void *conn, nasio_msg_t *msg) {
     printf("on message");
 }
 ```
@@ -50,8 +47,7 @@ void echo_on_connect(void *conn);
 void echo_on_close(void *conn);
 void echo_on_message(void *conn, nasio_msg_t *msg);
 
-int main(int argc, char* argv[])
-{
+int main(int argc, char* argv[]) {
 	void *env = nasio_env_create( 1000 );
 	nasio_conn_event_handler_t *handler = (nasio_conn_event_handler_t *)malloc( sizeof(nasio_conn_event_handler_t) ); 
 	handler->on_connect = echo_on_connect;
@@ -64,8 +60,7 @@ int main(int argc, char* argv[])
 
 	return 0;
 }
-void echo_on_connect(void *conn)
-{
+void echo_on_connect(void *conn) {
     printf("on connect\n");
 
     // send hello
@@ -74,12 +69,10 @@ void echo_on_connect(void *conn)
     nasio_send_msg(conn, &msg);
     nasio_msg_destroy( &msg );
 }
-void echo_on_close(void *conn)
-{
+void echo_on_close(void *conn) {
     printf("on close\n");
 }
-void echo_on_message(void *conn, nasio_msg_t *msg)
-{
+void echo_on_message(void *conn, nasio_msg_t *msg) {
     printf("on message\n");
 }
 ```
