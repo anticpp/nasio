@@ -81,8 +81,8 @@ cat << EOF >> ${MAKEFILE}
 	\$(CXX) \$^ -o \$@ \$(LIBNASIO) \$(LIBS)
 
 install:
-	cp -rf src/nasio.h ${PREFIX}/include/
-	cp -rf libs/libnasio.a ${PREFIX}/lib/
+	@cp -rvf src/nasio.h ${PREFIX}/include/
+	@cp -rvf libs/libnasio.a ${PREFIX}/lib/
 
 clean:
 	rm -fv \$(TARGETS) src/*.o src/*.d test/*.o test/*.d

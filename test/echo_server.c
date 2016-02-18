@@ -39,7 +39,7 @@ void echo_on_close(void *conn) {
 	printf("close connection %s:%d\n", nasio_net_get_dot_addr(&addr), ntohs(addr.sin_port));
 }
 void echo_on_message(void *conn, nasio_msg_t *msg) {
-    printf("[RECV] [%s][%zu]\n", nasio_msg_data(msg), nasio_msg_size(msg));
+    printf("[RECV] [%s][%zu]\n", (char *)nasio_msg_data(msg), nasio_msg_size(msg));
 
     time_t now = time(0);
     struct tm *tt = localtime(&now);
@@ -58,6 +58,6 @@ void echo_on_message(void *conn, nasio_msg_t *msg) {
     char *data = nasio_msg_data( &resp );
     memcpy(data, buf, strlen(buf)+1);
     nasio_send_msg(conn, &resp);
-    printf("[SEND] [%s] [%zu]\n", nasio_msg_data(&resp), nasio_msg_size(&resp));
+    printf("[SEND] [%s] [%zu]\n", (char *)nasio_msg_data(&resp), nasio_msg_size(&resp));
     nasio_msg_destroy( &resp );
 }

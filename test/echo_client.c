@@ -67,5 +67,5 @@ void echo_on_close(void *conn) {
     g_conn = 0;
 }
 void echo_on_message(void *conn, nasio_msg_t *msg) {
-    printf("[RECV] [%s] [%zu]\n", nasio_msg_data(msg), nasio_msg_size(msg));
+    printf("[RECV] [%s] [%zu]\n", (char *)nasio_msg_data(msg), nasio_msg_size(msg));
 }
