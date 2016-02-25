@@ -14,6 +14,7 @@
 #include "nlist.h"
 #include "nbuffer.h"
 #include "nasio_net.h"
+#include "nasio_logger.h"
 
 #define PROTOCOL_VERSION 1
 #define PROTOCOL_MAGIC 0x438eaf12
@@ -40,63 +41,6 @@
 	((connector)->retry_cnt)++;\
 	((connector)->last_try) = now_time_sec(env);\
 }while(0)\
-
-
-#ifdef NASIO_DEBUG
-#define nasio_env_log(env, l, fmt, ...) do{\
-    if( env->logger.callback && l>=env->logger.level ){\
-        env->logger.callback( l, fmt, __VA_ARGS__ );\
-    }\
-}while(0)
-#else 
-#define nasio_env_log(env, l, fmt, ...)
-#endif
-
-#define nasio_log_trace(env, fmt, ...) nasio_env_log(env, NASIO_LOG_LEVEL_TRACE, fmt, __VA_ARGS__)
-#define nasio_log_info(env, fmt, ...) nasio_env_log(env, NASIO_LOG_LEVEL_INFO, fmt, __VA_ARGS__)
-#define nasio_log_debug(env, fmt, ...) nasio_env_log(env, NASIO_LOG_LEVEL_DEBUG, fmt, __VA_ARGS__)
-#define nasio_log_warn(env, fmt, ...) nasio_env_log(env, NASIO_LOG_LEVEL_WARN, fmt, __VA_ARGS__)
-#define nasio_log_error(env, fmt, ...) nasio_env_log(env, NASIO_LOG_LEVEL_ERROR, fmt, __VA_ARGS__)
-#define nasio_log_fatal(env, fmt, ...) nasio_env_log(env, NASIO_LOG_LEVEL_FATAL, fmt, __VA_ARGS__)
-
-#ifdef NASIO_DEBUG
-
-#define NASIO_MAX_LOG_LEN 2048
-
-static const char *nasio_log_level_name[] = {
-        "ALL", "TRACE", "INFO", "DEBUG",
-        "WARN", "ERROR", "FATAL"
-};
-
-static void default_log_cb(int level, const char *fmt, ...) {
-    char tmp[NASIO_MAX_LOG_LEN] = {""};
-
-    va_list ap;
-    va_start(ap, fmt);
-    vsnprintf(tmp, sizeof(tmp)-1, fmt, ap);
-    va_end(ap);
-
-    struct timeval tv;
-    gettimeofday(&tv, 0);
-
-    struct tm tm;
-#if _POSIX_C_SOURCE >= 1 || _XOPEN_SOURCE || _BSD_SOURCE || _SVID_SOURCE || _POSIX_SOURCE
-    localtime_r( (time_t *)&(tv.tv_sec), &tm );
-#else
-    /*
-     * Well, suppose it will never fails.
-     */
-    tm = *localtime( (time_t *)&(tv.tv_sec) );
-#endif
-
-    fprintf(stderr, "[%04d%02d%02d %02d:%02d:%02d.%d] [%s] %s\n"
-                    , 1900+tm.tm_year, tm.tm_mon, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec, tv.tv_usec
-                    , nasio_log_level_name[level], tmp);
-}
-#endif
-/*
- * logger define end
- */
 
 typedef struct nasio_conn_s nasio_conn_t;
 
@@ -243,8 +187,10 @@ void on_connector_cb(struct ev_loop *loop, struct ev_io *w, int revents) {
 
 	if( (revents & EV_READ) || (revents & EV_WRITE) ) {
 		rv = getsockopt(connector->fd, SOL_SOCKET, SO_ERROR, &error, &n);
-		if( rv<0 || error )
+		if( rv<0 || error ) {
+            nasio_log_error( env, "fd socket error(SO_ERROR) %d", connector->fd );
 			goto retry;
+        }
 		
 		/* connect succ
 		*/
@@ -283,7 +229,9 @@ void on_fd_readable_cb(struct ev_loop *loop, struct ev_io *w, int revents) {
     nasio_msg_header_t header;
 
 	nasio_conn_t *conn = connection_of(w, read_watcher);
+#ifdef NASIO_DEBUG
     nasio_env_t *env = conn->env;
+#endif
 
 	if( !conn->rbuf ) {
         nasio_log_trace( env, "create read buffer for fd %d", conn->fd );
@@ -426,6 +374,30 @@ nasio_conn_t *nasio_conn_new(nasio_env_t *env
 }
 
 void nasio_process_connector(nasio_env_t *env) {
+    /*                                              close
+     *           -------------------------------------------------------------------------------------------
+     *           |                                                                                         |
+     *           |                           succ                                                          |
+     *           |      -------------------------------------------------------------------                |
+     *           |      |                                                                 |                |
+     *           |      |                                                                 |                |
+     *           V      |                                                                 |                |
+     * -----------------------------             -------------------------------          |     ----------------------------
+     * |                           |  pending    |                             |    succ  ----> |                          |
+     * | NASIO_CONNECT_STATE_WAIT  | ----------> | NASIO_CONNECT_STATE_PENDING | -------------> | NASIO_CONNECT_STATE_DONE |
+     * |        (connect)          |             |       (ev_io_start)         |                |                          |
+     * -----------------------------            -------------------------------                 ---------------------------- 
+     *             ^     |    ^                      |                       |
+     *             |     |    |       timeout        |                       |   error
+     *             |     |    ------------------------                       -----------
+     *             |     |                                                             |
+     *             |     |                                                             |
+     *             |     |       error           -----------------------------         |
+     *             |     ----------------------> |                           |         |
+     *             |           interval          | NASIO_CONNECT_STATE_RETRY | <-------
+     *             ----------------------------- |                           |
+     *                                           -----------------------------
+     */                                                        
 	int rv = 0;
     ev_io *watcher = 0;
 
